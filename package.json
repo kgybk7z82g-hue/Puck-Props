@@ -1,0 +1,10 @@
+{
+  "name": "puck-props",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A personal NHL stats and props research dashboard",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check app.js && node --check server.js"
+  }
+}

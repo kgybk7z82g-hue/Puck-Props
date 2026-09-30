@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#101827"/><text x="50" y="67" font-size="57" text-anchor="middle">🏒</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title desc">
+  <title id="title">Puck Props</title>
+  <desc id="desc">A hockey stick striking a puck with a rising teal shot trail.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#14243a"/><stop offset="1" stop-color="#091321"/></linearGradient>
+    <linearGradient id="stick" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#5ce1c3"/><stop offset="1" stop-color="#e8f5f5"/></linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="url(#bg)"/>
+  <path d="M19 34a36 36 0 0 1 54-14" fill="none" stroke="#5ce1c3" stroke-linecap="round" stroke-width="3" opacity=".58"/>
+  <path d="m71 15 5 5-7 1" fill="none" stroke="#5ce1c3" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  <circle cx="50" cy="53" r="32" fill="#102035" stroke="#29415a" stroke-width="2"/>
+  <path d="m29 76 39-48" fill="none" stroke="url(#stick)" stroke-linecap="round" stroke-width="7"/>
+  <path d="m28 75 12 10 8-1" fill="none" stroke="#5ce1c3" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"/>
+  <ellipse cx="27" cy="81" rx="12" ry="5.5" fill="#050b13" stroke="#84b8ff" stroke-width="2"/>
+  <path d="M17 81h20" fill="none" stroke="#5ce1c3" stroke-linecap="round" stroke-width="1.5" opacity=".9"/>
+</svg>
