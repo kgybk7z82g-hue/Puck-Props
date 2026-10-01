@@ -17,6 +17,174 @@ const STATIC = new Map([
 ]);
 const teamDefenseCache = new Map();
 const teamSpecialCache = new Map();
+const oddsCatalogCache = new Map();
+const oddsDailyCache = new Map();
+const startingGoalieCache = new Map();
+
+const teamCodeByName = new Map([['anaheim ducks','ANA'],['boston bruins','BOS'],['buffalo sabres','BUF'],['calgary flames','CGY'],['carolina hurricanes','CAR'],['chicago blackhawks','CHI'],['colorado avalanche','COL'],['columbus blue jackets','CBJ'],['dallas stars','DAL'],['detroit red wings','DET'],['edmonton oilers','EDM'],['florida panthers','FLA'],['los angeles kings','LAK'],['minnesota wild','MIN'],['montreal canadiens','MTL'],['nashville predators','NSH'],['new jersey devils','NJD'],['new york islanders','NYI'],['new york rangers','NYR'],['ottawa senators','OTT'],['philadelphia flyers','PHI'],['pittsburgh penguins','PIT'],['san jose sharks','SJS'],['seattle kraken','SEA'],['st. louis blues','STL'],['utah mammoth','UTA'],['tampa bay lightning','TBL'],['toronto maple leafs','TOR'],['vancouver canucks','VAN'],['vegas golden knights','VGK'],['washington capitals','WSH'],['winnipeg jets','WPG']]);
+
+function normalizeStartingGoalies(pageProps) {
+  const byTeam = {};
+  const seen = new Set();
+  const add = (teamLabel, name, rawStatus) => {
+    const label = String(teamLabel || '').trim();
+    const team = /^[A-Z]{2,3}$/.test(label) ? label : teamCodeByName.get(label.toLowerCase());
+    if (!team || !name) return;
+    const status = /confirm/i.test(String(rawStatus)) && !/unconfirm/i.test(String(rawStatus)) ? 'Confirmed' : /likely|probab|expected/i.test(String(rawStatus)) ? 'Likely' : 'Unconfirmed';
+    const key = `${team}:${name}`;
+    if (!seen.has(key)) { byTeam[team] = { team, name: String(name), status }; seen.add(key); }
+  };
+  for (const game of Array.isArray(pageProps?.data) ? pageProps.data : []) {
+    for (const side of ['home', 'away']) add(game[`${side}TeamName`], game[`${side}GoalieName`], game[`${side}NewsStrengthName`]);
+  }
+  const visit = (value, inheritedTeam = '') => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { for (const item of value) visit(item, inheritedTeam); return; }
+    const teamObject = value.team && typeof value.team === 'object' ? value.team : {};
+    const teamLabel = [value.teamAbbrev, value.teamAbbreviation, value.abbreviation, teamObject.abbreviation, teamObject.abbrev, teamObject.name, value.teamName, value.team_name, value.name].find(x => typeof x === 'string' && x.trim()) || inheritedTeam;
+    const text = String(teamLabel).trim();
+    const team = /^[A-Z]{2,3}$/.test(text) ? text : teamCodeByName.get(text.toLowerCase());
+    const goalie = value.goalie || value.player || value.startingGoalie || value.starter || value.goaltender;
+    const person = goalie && typeof goalie === 'object' ? goalie : value;
+    const name = person.fullName || person.name || [person.firstName, person.lastName].filter(Boolean).join(' ') || '';
+    const status = person.status || value.status || value.goalieStatus || value.startStatus || '';
+    if (team && name && status && /confirm|likely|probab|project|unconfirm|expected|starter/i.test(String(status))) {
+      add(team, name, status);
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (child && typeof child === 'object') visit(child, /team/i.test(key) && typeof child === 'string' ? child : text || inheritedTeam);
+    }
+  };
+  visit(pageProps?.data || pageProps);
+  return byTeam;
+}
+
+async function getStartingGoalies(date) {
+  const cached = startingGoalieCache.get(date);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  const response = await fetch(`https://www.dailyfaceoff.com/starting-goalies/${date}`, { headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 PuckProps/1.0' }, signal: AbortSignal.timeout(12000) });
+  if (!response.ok) throw new Error(`Starting-goalie source returned HTTP ${response.status}.`);
+  const html = await response.text();
+  const match = html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) throw new Error('Starting-goalie source data was not available.');
+  const nextData = JSON.parse(match[1]);
+  const goalies = normalizeStartingGoalies(nextData.props?.pageProps || nextData.pageProps || {});
+  const result = { date, source: 'Daily Faceoff', sourceUrl: `https://www.dailyfaceoff.com/starting-goalies/${date}`, goalies, updatedAt: new Date().toISOString() };
+  startingGoalieCache.set(date, { value: result, expires: Date.now() + 5 * 60 * 1000 });
+  return result;
+}
+
+async function readJsonBody(req, limit = 12000) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > limit) throw new Error('Request body is too large.');
+  }
+  try { return JSON.parse(body || '{}'); }
+  catch { throw new Error('Invalid JSON request.'); }
+}
+
+async function oddsPapi(pathname, apiKey) {
+  const url = new URL(`https://api.oddspapi.io/v4/${pathname}`);
+  url.searchParams.set('apiKey', apiKey);
+  const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+  const body = await response.text();
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const payload = JSON.parse(body);
+      const candidate = payload?.message ?? payload?.error ?? payload?.detail;
+      detail = typeof candidate === 'string' ? candidate : candidate && typeof candidate === 'object'
+        ? (candidate.message || candidate.detail || JSON.stringify(candidate)) : '';
+    } catch {}
+    throw new Error(detail || `Odds feed returned HTTP ${response.status}.`);
+  }
+  try { return JSON.parse(body); } catch { throw new Error('Odds feed returned an unreadable response.'); }
+}
+
+async function getOddsCatalog(apiKey) {
+  if (oddsCatalogCache.has(apiKey)) return oddsCatalogCache.get(apiKey);
+  const pending = (async () => {
+    const [tournaments, markets] = await Promise.all([
+      oddsPapi('tournaments?sportId=15&language=en', apiKey),
+      oddsPapi('markets?sportId=15&language=en', apiKey),
+    ]);
+    const nhl = (Array.isArray(tournaments) ? tournaments : []).find(t => String(t.tournamentSlug || '').toLowerCase() === 'nhl' || /^nhl$/i.test(t.tournamentName || ''));
+    if (!nhl) throw new Error('The odds feed did not return an NHL tournament.');
+    return { tournamentId: nhl.tournamentId, markets: new Map((Array.isArray(markets) ? markets : []).filter(m => Number(m.sportId) === 15).map(m => [String(m.marketId), m])) };
+  })();
+  oddsCatalogCache.set(apiKey, pending);
+  try { return await pending; } catch (error) { oddsCatalogCache.delete(apiKey); throw error; }
+}
+
+function normalizeNhlOdds(fixtures, markets, from, to) {
+  const legs = new Map();
+  for (const fixture of fixtures) {
+    const startTime = new Date(fixture.startTime || '').getTime();
+    if (!Number.isFinite(startTime) || startTime < new Date(from).getTime() || startTime > new Date(to).getTime()) continue;
+    const books = fixture.bookmakerOdds || {};
+    for (const [book, bookmaker] of Object.entries(books)) {
+      for (const [marketId, market] of Object.entries(bookmaker.markets || {})) {
+        if (market.marketActive === false) continue;
+        const meta = markets.get(String(marketId));
+        if (!meta) continue;
+        const marketName = String(meta.marketName || '').trim();
+        const lower = marketName.toLowerCase();
+        let category = '';
+        if (meta.playerProp || /player/.test(lower)) {
+          if (/shots on goal/.test(lower)) category = 'Shots on goal';
+          else if (/blocked shots|blocks/.test(lower)) category = 'Blocked shots';
+          else if (/points/.test(lower)) category = 'Player points';
+        } else if (/moneyline|match winner|full time result|winner/.test(lower)) category = 'Team win';
+        if (!category) continue;
+        for (const [outcomeId, outcome] of Object.entries(market.outcomes || {})) {
+          const outcomeMeta = (meta.outcomes || []).find(o => String(o.outcomeId) === String(outcomeId));
+          const outcomeName = String(outcomeMeta?.outcomeName || outcomeId);
+          const outcomeKey = `${outcomeName} ${Object.values(outcome.players || {}).map(p => p.bookmakerOutcomeId || '').join(' ')}`.toLowerCase();
+          if (category !== 'Team win' && !/over/.test(outcomeKey)) continue;
+          for (const [playerKey, selection] of Object.entries(outcome.players || {})) {
+            const odds = Number(selection.price);
+            if (!selection.active || !Number.isFinite(odds) || odds <= 1.01 || odds > 100) continue;
+            if (category === 'Team win' && playerKey !== '0') continue;
+            const playerName = selection.playerName || '';
+            const line = Number(meta.handicap);
+            if (category !== 'Team win' && (!playerName || !Number.isFinite(line))) continue;
+            if (category === 'Shots on goal' && line < 1.5) continue;
+            if (category === 'Blocked shots' && line < 0.5) continue;
+            if (category === 'Player points' && line < 0.5) continue;
+            const event = `${fixture.participant1ShortName || fixture.participant1Name} vs ${fixture.participant2ShortName || fixture.participant2Name}`;
+            const selectionText = category === 'Team win'
+              ? `${event} · ${outcomeName}`
+              : `${playerName} · Over ${line} ${category.toLowerCase()} (${event})`;
+            const marketKey = category === 'Team win' ? `${fixture.fixtureId}:${marketId}:${outcomeId}` : `${fixture.fixtureId}:${marketId}:${outcomeId}:${playerKey}`;
+            const prior = legs.get(marketKey);
+            if (!prior || odds > prior.odds) legs.set(marketKey, { id: marketKey, fixtureId: String(fixture.fixtureId), market: category, selection: selectionText, odds, book, updatedAt: selection.changedAt || fixture.updatedAt || null });
+          }
+        }
+      }
+    }
+  }
+  return [...legs.values()];
+}
+
+async function getDailyOddsPicks({ apiKey, date, from, to }) {
+  const cacheKey = `${apiKey}:${date}`;
+  const cached = oddsDailyCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  const { tournamentId, markets } = await getOddsCatalog(apiKey);
+  const params = new URLSearchParams({ tournamentId: String(tournamentId), from, to, hasOdds: 'true', bookmakers: 'bet365,draftkings,fanduel' });
+  const fixtures = await oddsPapi(`fixtures?${params}`, apiKey);
+  const fixtureList = (Array.isArray(fixtures) ? fixtures : []).filter(f => { const time = new Date(f.startTime || '').getTime(); return Number.isFinite(time) && time >= new Date(from).getTime() && time <= new Date(to).getTime(); }).slice(0, 24);
+  const oddsFixtures = [];
+  for (const fixture of fixtureList) {
+    const query = new URLSearchParams({ fixtureId: String(fixture.fixtureId), bookmakers: 'bet365,draftkings,fanduel', language: 'en', verbosity: '3' });
+    oddsFixtures.push(await oddsPapi(`odds?${query}`, apiKey));
+    if (fixture !== fixtureList[fixtureList.length - 1]) await new Promise(resolve => setTimeout(resolve, 550));
+  }
+  const result = { date, legs: normalizeNhlOdds(oddsFixtures, markets, from, to), fixtures: fixtureList.length, updatedAt: new Date().toISOString() };
+  oddsDailyCache.set(cacheKey, { value: result, expires: Date.now() + 5 * 60 * 1000 });
+  return result;
+}
 
 function send(res, status, body, type = 'text/plain; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff' });
@@ -225,10 +393,33 @@ async function getTeamSpecialStats(team, season) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'POST' && url.pathname === '/api/odds/daily-picks') {
+    try {
+      const body = await readJsonBody(req);
+      const apiKey = String(body.apiKey || '').trim();
+      const date = String(body.date || '');
+      if (!apiKey || apiKey.length > 512) return send(res, 400, JSON.stringify({ error: 'Enter a valid odds feed API key.' }), 'application/json; charset=utf-8');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return send(res, 400, JSON.stringify({ error: 'Choose a valid slate date.' }), 'application/json; charset=utf-8');
+      const dayStart = new Date(body.from || `${date}T00:00:00`), dayEnd = new Date(body.to || `${date}T23:59:59`);
+      if (!Number.isFinite(dayStart.getTime()) || !Number.isFinite(dayEnd.getTime()) || dayEnd <= dayStart) return send(res, 400, JSON.stringify({ error: 'Invalid slate date range.' }), 'application/json; charset=utf-8');
+      const data = await getDailyOddsPicks({ apiKey, date, from: dayStart.toISOString(), to: dayEnd.toISOString() });
+      return send(res, 200, JSON.stringify(data), 'application/json; charset=utf-8');
+    } catch (error) {
+      const message = typeof error?.message === 'string' ? error.message : error?.message && typeof error.message === 'object'
+        ? (error.message.message || JSON.stringify(error.message)) : 'Could not load NHL betting odds.';
+      return send(res, 502, JSON.stringify({ error: message }), 'application/json; charset=utf-8');
+    }
+  }
   if (req.method !== 'GET') return send(res, 405, 'GET only');
 
   if (url.pathname === '/api/health') {
-    return send(res, 200, JSON.stringify({ ok: true, service: 'puck-props', version: 15 }), 'application/json; charset=utf-8');
+    return send(res, 200, JSON.stringify({ ok: true, service: 'puck-props', version: 17 }), 'application/json; charset=utf-8');
+  }
+
+  const goalieMatch = url.pathname.match(/^\/api\/starting-goalies\/(\d{4}-\d{2}-\d{2})$/);
+  if (goalieMatch) {
+    try { return send(res, 200, JSON.stringify(await getStartingGoalies(goalieMatch[1])), 'application/json; charset=utf-8'); }
+    catch (error) { return send(res, 502, JSON.stringify({ error: error.message || 'Could not load probable starters.' }), 'application/json; charset=utf-8'); }
   }
 
   const defenseMatch = url.pathname.match(/^\/api\/team-defense\/([A-Z]{3})\/(\d{8})$/);
