@@ -413,7 +413,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== 'GET') return send(res, 405, 'GET only');
 
   if (url.pathname === '/api/health') {
-    return send(res, 200, JSON.stringify({ ok: true, service: 'puck-props', version: 17 }), 'application/json; charset=utf-8');
+    return send(res, 200, JSON.stringify({ ok: true, service: 'puck-props', version: 24 }), 'application/json; charset=utf-8');
   }
 
   const goalieMatch = url.pathname.match(/^\/api\/starting-goalies\/(\d{4}-\d{2}-\d{2})$/);

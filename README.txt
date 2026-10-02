@@ -19,6 +19,5 @@ Features
 - Open a matchup on its own detail screen with a back button, probable starting goalie reports, and player box scores.
 - Mark players explicitly listed on injured reserve in a team roster.
 - Generate five daily NHL parlays from team and player game history, covering team wins, shots on goal, blocked shots, and points. The displayed return ranges are statistical estimates, not live sportsbook odds.
-- A local saved-player list stored in this browser on this device.
 
 The local server proxies only the NHL score, player, roster, standings, schedule, boxscore, team-defense, and player-search requests used by the app. This avoids dependence on unreliable public CORS relays. If start.bat reports an older server on port 4173, stop that older server before starting the app again. Recent matchup searches stop once the requested number of games is found; career history requests seasons in small parallel batches. Data availability depends on the NHL services and internet connection. This is an unofficial personal project.

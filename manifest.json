@@ -1,1 +1,20 @@
-{"id":"/","name":"Puck Props — NHL dashboard","short_name":"Puck Props","description":"NHL scores, player statistics, matchup history and daily prop research.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#080f1c","theme_color":"#0b1424","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}
+{
+  "id": "/",
+  "name": "Puck Props — NHL dashboard",
+  "short_name": "Puck Props",
+  "description": "NHL scores, player statistics, matchup history and daily prop research.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050a12",
+  "theme_color": "#070e1e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
