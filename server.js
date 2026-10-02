@@ -17,6 +17,47 @@ const STATIC = new Map([
 ]);
 const teamDefenseCache = new Map();
 const teamSpecialCache = new Map();
+const teamPeriodCache = new Map();
+
+async function getTeamPeriodGoals(team, season) {
+  const key = `${team}:${season}`, cached = teamPeriodCache.get(key);
+  if (cached?.expires > Date.now()) return cached.value;
+  if (cached?.promise) return cached.promise;
+  const promise = (async () => {
+    const schedule = await nhlJson(`/club-schedule-season/${team}/${season}`);
+    const games = [...new Map((schedule.games || []).filter(g => g.gameType === 2 && ['OFF', 'FINAL'].includes(g.gameState)).map(g => [String(g.id), g])).values()];
+    const goals = { first: 0, second: 0, third: 0 };
+    let next = 0, gamesProcessed = 0, failed = 0;
+    const worker = async () => {
+      while (next < games.length) {
+        const game = games[next++];
+        try {
+          const data = await nhlJson(`/gamecenter/${game.id}/play-by-play`);
+          const side = data.homeTeam?.abbrev === team ? data.homeTeam : data.awayTeam?.abbrev === team ? data.awayTeam : null;
+          if (!side || !Array.isArray(data.plays)) throw new Error('Scoring details unavailable');
+          const counts = { first: 0, second: 0, third: 0 };
+          for (const play of data.plays) {
+            if (play.typeDescKey !== 'goal' || Number(play.details?.eventOwnerTeamId) !== Number(side.id)) continue;
+            const descriptor = play.periodDescriptor || {};
+            if (['SO', 'OT'].includes(descriptor.periodType)) continue;
+            const bucket = ({ 1: 'first', 2: 'second', 3: 'third' })[descriptor.number];
+            if (!bucket) throw new Error('Goal period unavailable');
+            counts[bucket]++;
+          }
+          for (const bucket of Object.keys(goals)) goals[bucket] += counts[bucket];
+          gamesProcessed++;
+        } catch { failed++; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, games.length) }, worker));
+    const result = { team, season, goals, gamesScheduled: games.length, gamesProcessed, failed, updatedAt: new Date().toISOString() };
+    teamPeriodCache.set(key, { value: result, expires: Date.now() + (failed ? 60000 : 5 * 60000) });
+    return result;
+  })();
+  teamPeriodCache.set(key, { promise });
+  try { return await promise; }
+  catch (error) { teamPeriodCache.delete(key); throw error; }
+}
 const oddsCatalogCache = new Map();
 const oddsDailyCache = new Map();
 const startingGoalieCache = new Map();
@@ -439,6 +480,15 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, JSON.stringify(data), 'application/json; charset=utf-8');
     } catch (error) {
       return send(res, 502, JSON.stringify({ error: error.message || 'Could not load team special-situations stats.' }), 'application/json; charset=utf-8');
+    }
+  }
+
+  const periodMatch = url.pathname.match(/^\/api\/team-period-goals\/([A-Z]{3})\/(\d{8})$/);
+  if (periodMatch) {
+    try {
+      return send(res, 200, JSON.stringify(await getTeamPeriodGoals(periodMatch[1], periodMatch[2])), 'application/json; charset=utf-8');
+    } catch (error) {
+      return send(res, 502, JSON.stringify({ error: error.message || 'Could not load goals by period.' }), 'application/json; charset=utf-8');
     }
   }
 

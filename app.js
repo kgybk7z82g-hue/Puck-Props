@@ -159,8 +159,24 @@ async function loadTeamSpecialStats(){
 }
 function playerOnIR(player){const values=[player.rosterStatus,player.status,player.injuryStatus,player.transactionType,player.listingStatus].filter(x=>typeof x==='string').join(' ').toLowerCase();return player.injuredReserve===true||player.isOnIR===true||player.ir===true||/\b(ir|ltir|injured reserve|long[- ]term injured reserve)\b/.test(values)}
 $('loadTeamSpecialStats').addEventListener('click',loadTeamSpecialStats);
+let teamPeriodRequest=0;
+async function loadTeamPeriodGoals(){
+ const ab=activeDirectoryTeam;if(!ab)return;
+ const request=++teamPeriodRequest,season=nhlSeasonIds()[0],label=String(season).replace(/(\d{4})(\d{4})/,'$1–$2');
+ $('teamPeriodGoals').innerHTML='';$('teamPeriodSeason').textContent=label;status('teamPeriodStatus','Loading season goals by period…');
+ try{
+  const data=await fetchJson(`/api/team-period-goals/${encodeURIComponent(ab)}/${season}`,120000);
+  if(activeDirectoryTeam!==ab||request!==teamPeriodRequest)return;
+  if(!data.gamesProcessed){status('teamPeriodStatus',data.gamesScheduled?'Scoring details are unavailable. Refresh to try again.':`No completed regular-season games in ${label} yet. Totals will appear after the first game.`,data.gamesScheduled?'error':'');return}
+  const periods=[['first','1st period'],['second','2nd period'],['third','3rd period']],total=periods.reduce((sum,[key])=>sum+data.goals[key],0),max=Math.max(...periods.map(([key])=>data.goals[key])),leaders=periods.filter(([key])=>data.goals[key]===max).map(([,name])=>name);
+  $('teamPeriodGoals').innerHTML=`<div class="special-leader"><h5>Highest-scoring period${leaders.length>1?'s':''}${data.failed?' · partial sample':''}</h5><strong>${max?leaders.join(' & '):'No regulation goals yet'}</strong><span>${max?`${max} goals${leaders.length>1?' each · tied':''}`:'Across completed games'}</span></div><div class="tablewrap"><table><thead><tr><th>Period</th><th>Goals</th><th>Share of regulation goals</th><th>Goals / game</th></tr></thead><tbody>${periods.map(([key,name])=>`<tr><td><b>${name}${max&&data.goals[key]===max?' · Highest':''}</b></td><td>${data.goals[key]}</td><td>${total?(100*data.goals[key]/total).toFixed(1):'0.0'}%</td><td>${(data.goals[key]/data.gamesProcessed).toFixed(2)}</td></tr>`).join('')}</tbody></table></div>`;
+  status('teamPeriodStatus',`${label} · ${data.gamesProcessed} of ${data.gamesScheduled} completed games · ${total} regulation goals${data.failed?` · ${data.failed} games unavailable; refresh to retry`:''} · Updated ${new Date(data.updatedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}.`,data.failed?'':'success');
+ }catch(e){if(activeDirectoryTeam===ab&&request===teamPeriodRequest)status('teamPeriodStatus',e.message,'error')}
+}
+$('refreshTeamPeriodGoals').addEventListener('click',loadTeamPeriodGoals);
+setInterval(()=>{if(activeDirectoryTeam&&!$('teams').classList.contains('hidden')&&!$('teamRosterPage').classList.contains('hidden'))loadTeamPeriodGoals()},5*60*1000);
 async function loadTeamRoster(ab){
- activeDirectoryTeam=ab;$('teamDirectoryPage').classList.add('hidden');$('teamRosterPage').classList.remove('hidden');$('rosterPageTitle').textContent=teams.find(t=>t[0]===ab)?.[1]||ab;$('directoryRoster').innerHTML='';status('directoryRosterStatus',`Loading ${teams.find(t=>t[0]===ab)?.[1]||ab} roster…`);
+ activeDirectoryTeam=ab;loadTeamPeriodGoals();$('teamDirectoryPage').classList.add('hidden');$('teamRosterPage').classList.remove('hidden');$('rosterPageTitle').textContent=teams.find(t=>t[0]===ab)?.[1]||ab;$('directoryRoster').innerHTML='';status('directoryRosterStatus',`Loading ${teams.find(t=>t[0]===ab)?.[1]||ab} roster…`);
  try{
   const d=await get(`/roster/${encodeURIComponent(ab)}/current`),groups=[['Forwards',d.forwards||[]],['Defense',d.defensemen||d.defense||[]],['Goalies',d.goalies||[]]],irRoster=[d.injuredReserve,d.injuredReservePlayers,d.irPlayers].find(Array.isArray)||[],rosterIds=new Set(groups.flatMap(g=>g[1]).map(p=>String(p.id??p.playerId))),irOnly=irRoster.filter(p=>!rosterIds.has(String(p.id??p.playerId)));if(irOnly.length)groups.push(['Injured reserve',irOnly]);const irIds=new Set(irRoster.map(p=>String(p.id??p.playerId)));const total=groups.reduce((n,g)=>n+g[1].length,0);
   if(!total)throw Error('No roster was returned for this team.');
