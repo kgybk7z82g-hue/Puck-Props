@@ -48,3 +48,19 @@ test('SGP can use more than two distinct players to approach four',()=>{
  const legs=Array.from({length:4},(_,i)=>({id:String(i),playerId:String(i),team:'TOR',probability:.7,sample:10,key:'shots',threshold:1,history:Array.from({length:10},(_,j)=>({gameDate:`day-${j+i*10}`,shots:1}))}));
  const pick=sameGameParlay(legs);assert.equal(pick.legs.length,4);assert.ok(Math.abs(pick.odds-4)<.2);
 });
+
+test('core-player shortlist keeps six forwards and three defensemen per team by recent ice time',()=>{
+ const players=[],histories=new Map();
+ for(const team of ['TOR','BOS'])for(const position of ['C','D'])for(let i=0;i<(position==='D'?5:8);i++){
+  const id=`${team}-${position}-${i}`;players.push({id,team,position});histories.set(id,Array.from({length:5},(_,j)=>({gameDate:`2026-09-${20+j}`,toi:`${25-i}:00`,shots:i===7?10:1})));
+ }
+ const core=context.selectCorePlayers(players,histories);assert.equal(core.size,18);
+ for(const team of ['TOR','BOS']){assert.equal([...core.values()].filter(p=>p.team===team&&p.position==='C').length,6);assert.equal([...core.values()].filter(p=>p.team===team&&p.position==='D').length,3);assert.ok(!core.has(`${team}-C-7`));assert.ok(!core.has(`${team}-D-4`));}
+ assert.equal(core.get('TOR-C-0').roleMinutes,25);
+});
+test('role selection uses latest games and excludes missing or malformed ice time',()=>{
+ const players=[{id:'recent',team:'TOR',position:'C'},{id:'old',team:'TOR',position:'C'},{id:'missing',team:'TOR',position:'D'},{id:'bad',team:'TOR',position:'D'},{id:'goalie',team:'TOR',position:'G'}];
+ const history=minutes=>Array.from({length:5},(_,i)=>({gameDate:`2026-09-${20+i}`,toi:minutes}));
+ const histories=new Map([['recent',[...history('21:30'),{gameDate:'2025-09-01',toi:'05:00'}]],['old',[...history('11:00'),{gameDate:'2025-09-01',toi:'30:00'}]],['missing',[{gameDate:'2026-09-01'}]],['bad',history('20:99')],['goalie',history('60:00')]]);
+ const core=context.selectCorePlayers(players,histories);assert.equal(core.size,2);assert.equal(core.get('recent').roleRank,1);assert.equal(core.get('recent').roleMinutes,21.5);assert.equal(core.get('old').roleMinutes,11);
+});

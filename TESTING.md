@@ -91,3 +91,10 @@ Validation: ten regression tests and application syntax checks passed, covering 
 ## October 5, 2026 — SGP target near 4.0
 
 Changed the SGP target from 3.0 to 4.0 estimated decimal return, with a 3.5–4.5 target window. The closest supported outside-window option still appears with a label. Shared-history requirements and fallback behavior remain. Updated UI copy, target regression fixtures and shell version (v32). Application syntax and ten regression tests passed.
+
+
+## October 5, 2026 — prominent player roles for prop projections
+
+Daily Picks, Daily Parlays and SGPs now restrict player props to each team's six highest-average-ice-time forwards and three highest-average-ice-time defensemen. Ranking uses the latest five available regular-season game records, requires at least three valid positive MM:SS ice-time values, and excludes goalies/unknown positions. Roster injury-reserve flags are excluded when provided. The shortlist applies before prop ranking and every SGP fallback, so depth skaters cannot re-enter just to achieve target odds. Results show the estimated role and average recent minutes. This is an ice-time proxy for prominent roles, not verified line assignments or bet365 market availability. Missing role data may reduce coverage.
+
+Validation: application syntax and twelve regression tests passed. New checks cover per-team forward/defense limits, depth-player exclusion despite strong shot totals, recent form versus old ice time, and missing/malformed ice time. Live bet365 availability and browser rendering were not verified. Shell version advanced to v33.
