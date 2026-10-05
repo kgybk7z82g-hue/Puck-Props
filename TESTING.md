@@ -86,3 +86,8 @@ SGP now searches 1+, 2+, and 3+ shots plus 1+ point, across combinations of two 
 Current-season player logs are refreshed on generation in both picks and parlays so newly completed results are included on later days. Historical inputs exclude the selected slate date, preventing results from that slate influencing earlier pregame estimates. Shell version v31.
 
 Validation: ten regression tests and application syntax checks passed, covering outside-target output, limited samples, independent fallback, multi-leg targeting, duplicate-player avoidance and missing-data handling. Live verification of October 5 coverage could not be completed: the NHL scoreboard and roster endpoints returned HTTP 429. All-game output is therefore conditional on upstream histories being available; no invented history or guaranteed accuracy is claimed.
+
+
+## October 5, 2026 — SGP target near 4.0
+
+Changed the SGP target from 3.0 to 4.0 estimated decimal return, with a 3.5–4.5 target window. The closest supported outside-window option still appears with a label. Shared-history requirements and fallback behavior remain. Updated UI copy, target regression fixtures and shell version (v32). Application syntax and ten regression tests passed.

@@ -20,20 +20,20 @@ test('opponent results affect ranking and missing seasons remain usable',()=>{
  const rate=researchRate(history.filter(g=>!g.currentSeason),'shots',2,.58,'TOR');assert.ok(rate>0&&rate<1);
 });
 test('same-game returns respect range, shared outcomes and distinct players',()=>{
- const history=Array.from({length:20},(_,i)=>({gameDate:`2026-09-${String(i+1).padStart(2,'0')}`,shots:i<6?3:0}));
+ const history=Array.from({length:20},(_,i)=>({gameDate:`2026-09-${String(i+1).padStart(2,'0')}`,shots:i<3?3:0}));
  const leg=id=>({id,playerId:id,team:'TOR',probability:.7,sample:20,history,key:'shots',threshold:2});
- const pick=sameGameParlay([leg('1'),leg('2')]);assert.ok(pick);assert.ok(pick.odds>=2.5&&pick.odds<=3.5);assert.equal(pick.jointSample,20);assert.equal(pick.jointHits,6);
+ const pick=sameGameParlay([leg('1'),leg('2')]);assert.ok(pick);assert.ok(pick.odds>=3.5&&pick.odds<=4.5);assert.equal(pick.jointSample,20);assert.equal(pick.jointHits,3);
  assert.equal(sameGameParlay([leg('1'),leg('1')]),null);
  assert.equal(sameGameParlay([leg('1'),{...leg('2'),team:'BOS'}]).method,'marginal');
  assert.equal(sameGameParlay([leg('1'),{...leg('2'),sample:2}]),null);
 });
 
 
-test('same-game selection favors estimated return closest to three',()=>{
+test('same-game selection favors estimated return closest to four',()=>{
  const leg=(id,hits)=>({id,playerId:id,team:'TOR',probability:.7,sample:20,key:'shots',threshold:2,history:Array.from({length:20},(_,i)=>({gameDate:`2026-09-${String(i+1).padStart(2,'0')}`,shots:i<hits?3:0}))});
- const lower=sameGameParlay([leg('1',20),leg('2',7)]),nearer=sameGameParlay([leg('1',20),leg('3',5)]);
+ const lower=sameGameParlay([leg('1',20),leg('2',7)]),nearer=sameGameParlay([leg('1',20),leg('3',3)]);
  assert.ok(lower&&nearer);assert.ok(lower.probability>nearer.probability);
- const selected=sameGameParlay([leg('1',20),leg('2',7),leg('3',5)]);
+ const selected=sameGameParlay([leg('1',20),leg('2',7),leg('3',3)]);
  assert.equal(selected.odds,nearer.odds);
  assert.equal(sameGameParlay([leg('1',20),leg('2',20)]).outsideTarget,true);
 });
@@ -44,7 +44,7 @@ test('SGP fills outside-range and limited shared history games without fabricati
  const fallback=sameGameParlay([leg('a'),leg('b',10)]);assert.ok(fallback);assert.equal(fallback.method,'marginal');assert.equal(fallback.jointSample,0);
  assert.equal(sameGameParlay([]),null);assert.equal(sameGameParlay([leg('a')]),null);
 });
-test('SGP can use more than two distinct players to approach three',()=>{
- const legs=Array.from({length:4},(_,i)=>({id:String(i),playerId:String(i),team:'TOR',probability:.75,sample:10,key:'shots',threshold:1,history:Array.from({length:10},(_,j)=>({gameDate:`day-${j+i*10}`,shots:1}))}));
- const pick=sameGameParlay(legs);assert.equal(pick.legs.length,4);assert.ok(Math.abs(pick.odds-3)<.2);
+test('SGP can use more than two distinct players to approach four',()=>{
+ const legs=Array.from({length:4},(_,i)=>({id:String(i),playerId:String(i),team:'TOR',probability:.7,sample:10,key:'shots',threshold:1,history:Array.from({length:10},(_,j)=>({gameDate:`day-${j+i*10}`,shots:1}))}));
+ const pick=sameGameParlay(legs);assert.equal(pick.legs.length,4);assert.ok(Math.abs(pick.odds-4)<.2);
 });
