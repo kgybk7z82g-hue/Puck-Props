@@ -72,3 +72,8 @@ Sources: https://moneypuck.com/about.htm, https://puckcast.ai/, https://podiumor
 Moved matchup parlay cards into a dedicated SGP (Same Game Parlays) tab immediately after Daily Parlays. The new panel has its own date selector, refresh button and status display. Dates and research requests are shared between both parlay panels; both refresh buttons show progress during a shared request. Existing matchup eligibility and estimates are preserved. Shell version advanced to v29.
 
 Validation: application syntax, all seven regression tests, navigation order, separate output placement, required controls and unique HTML IDs passed. Browser visual inspection was not performed for this small layout change.
+
+
+## October 5, 2026 — SGP target around 3.0
+
+SGP candidates now qualify within 2.5–3.5 estimated decimal return and are selected by distance from 3.0, with higher estimated probability breaking exact ties. Existing individual probability and shared-history requirements remain. UI copy and shell version (v30) updated. Syntax checks and eight regression tests passed, including a check that a closer-to-three candidate wins over a higher-probability lower-return candidate. Returns remain model estimates rather than sportsbook prices.

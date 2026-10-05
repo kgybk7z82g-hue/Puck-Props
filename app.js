@@ -222,7 +222,7 @@ function sameGameParlay(legs){
   const other=new Map(b.history.map(g=>[g.gameDate,g])),shared=a.history.filter(g=>other.has(g.gameDate));if(shared.length<10)continue;
   const hits=shared.filter(g=>num(g[a.key])>=a.threshold&&num(other.get(g.gameDate)[b.key])>=b.threshold).length;
   const probability=(hits+a.probability*b.probability*8)/(shared.length+8),odds=1/probability;
-  if(odds>=2&&odds<=4&&(!best||probability>best.probability))best={legs:[a,b],probability,odds,jointSample:shared.length,jointHits:hits};
+  if(odds>=2.5&&odds<=3.5&&(!best||Math.abs(odds-3)<Math.abs(best.odds-3)||(Math.abs(odds-3)===Math.abs(best.odds-3)&&probability>best.probability)))best={legs:[a,b],probability,odds,jointSample:shared.length,jointHits:hits};
  }
  return best;
 }
@@ -285,7 +285,7 @@ async function loadAutoDailyParlays(force=false){
   const latest=await freshSlate(date),remaining=(latest.games||[]).filter(g=>gameNotStarted(g)),ids=new Set(remaining.map(g=>String(g.id))),eligible=legs.filter(l=>ids.has(l.fixtureId));
   if($('betDate').value!==date)return;
   const picks=enumerateModelParlays(eligible);renderAutoParlays(picks);autoParlayDate=date;
-  $('sameGameCombos').innerHTML=remaining.map(game=>{const pick=sameGameParlay(eligible.filter(l=>l.fixtureId===String(game.id))),title=`${game.awayTeam?.abbrev} at ${game.homeTeam?.abbrev}`;return `<article class="pick-card"><h4>${esc(title)}</h4>${pick?`<div class="pick-rate">${pick.odds.toFixed(2)}× estimated</div><div class="pick-detail">${(pick.probability*100).toFixed(1)}% model estimate · Both legs hit in ${pick.jointHits}/${pick.jointSample} shared historical games.</div>${pick.legs.map(l=>`<div class="pick-detail">${esc(l.selection)} · ${Math.round(l.probability*100)}% · ${esc(l.sampleDetail)}</div>`).join('')}`:'<div class="pick-detail">No qualifying conservative 2×–4× combination with enough shared history. No parlay suggested.</div>'}</article>`}).join('')||'<div class="empty">No games remain that have not started.</div>';
+  $('sameGameCombos').innerHTML=remaining.map(game=>{const pick=sameGameParlay(eligible.filter(l=>l.fixtureId===String(game.id))),title=`${game.awayTeam?.abbrev} at ${game.homeTeam?.abbrev}`;return `<article class="pick-card"><h4>${esc(title)}</h4>${pick?`<div class="pick-rate">${pick.odds.toFixed(2)}× estimated</div><div class="pick-detail">${(pick.probability*100).toFixed(1)}% model estimate · Both legs hit in ${pick.jointHits}/${pick.jointSample} shared historical games.</div>${pick.legs.map(l=>`<div class="pick-detail">${esc(l.selection)} · ${Math.round(l.probability*100)}% · ${esc(l.sampleDetail)}</div>`).join('')}`:'<div class="pick-detail">No qualifying combination near 3× (2.5×–3.5×) with enough shared history. No parlay suggested.</div>'}</article>`}).join('')||'<div class="empty">No games remain that have not started.</div>';
   parlayStatus(`${picks.length} daily parlays · ${remaining.length} upcoming games checked for same-game parlays. Estimates use recent form, season history and opponent results. Return multiples are model estimates, not sportsbook odds.`,'success');
  }catch(error){parlayStatus(error.message||'Could not build statistical parlays from NHL game data.','error')}
  finally{busy(button,false);busy($('buildSameDayCombos'),false);autoParlayPromise=null;if($('betDate').value!==date)loadAutoDailyParlays(true)}})();return autoParlayPromise;
