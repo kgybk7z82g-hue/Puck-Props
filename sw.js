@@ -1,4 +1,4 @@
-const CACHE='puck-props-v30';
+const CACHE='puck-props-v31';
 const SHELL=['./','./index.html','./app.js?v=26','./manifest.json','./icon.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL))));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{

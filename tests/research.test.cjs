@@ -24,7 +24,7 @@ test('same-game returns respect range, shared outcomes and distinct players',()=
  const leg=id=>({id,playerId:id,team:'TOR',probability:.7,sample:20,history,key:'shots',threshold:2});
  const pick=sameGameParlay([leg('1'),leg('2')]);assert.ok(pick);assert.ok(pick.odds>=2.5&&pick.odds<=3.5);assert.equal(pick.jointSample,20);assert.equal(pick.jointHits,6);
  assert.equal(sameGameParlay([leg('1'),leg('1')]),null);
- assert.equal(sameGameParlay([leg('1'),{...leg('2'),team:'BOS'}]),null);
+ assert.equal(sameGameParlay([leg('1'),{...leg('2'),team:'BOS'}]).method,'marginal');
  assert.equal(sameGameParlay([leg('1'),{...leg('2'),sample:2}]),null);
 });
 
@@ -35,5 +35,16 @@ test('same-game selection favors estimated return closest to three',()=>{
  assert.ok(lower&&nearer);assert.ok(lower.probability>nearer.probability);
  const selected=sameGameParlay([leg('1',20),leg('2',7),leg('3',5)]);
  assert.equal(selected.odds,nearer.odds);
- assert.equal(sameGameParlay([leg('1',20),leg('2',20)]),null);
+ assert.equal(sameGameParlay([leg('1',20),leg('2',20)]).outsideTarget,true);
+});
+
+test('SGP fills outside-range and limited shared history games without fabricating records',()=>{
+ const leg=(id,offset=0)=>({id,playerId:id,team:'TOR',probability:.8,sample:3,key:'shots',threshold:1,history:Array.from({length:3},(_,i)=>({gameDate:`day-${i+offset}`,shots:1}))});
+ const limited=sameGameParlay([leg('a'),leg('b')]);assert.ok(limited);assert.equal(limited.jointSample,3);assert.equal(limited.outsideTarget,true);
+ const fallback=sameGameParlay([leg('a'),leg('b',10)]);assert.ok(fallback);assert.equal(fallback.method,'marginal');assert.equal(fallback.jointSample,0);
+ assert.equal(sameGameParlay([]),null);assert.equal(sameGameParlay([leg('a')]),null);
+});
+test('SGP can use more than two distinct players to approach three',()=>{
+ const legs=Array.from({length:4},(_,i)=>({id:String(i),playerId:String(i),team:'TOR',probability:.75,sample:10,key:'shots',threshold:1,history:Array.from({length:10},(_,j)=>({gameDate:`day-${j+i*10}`,shots:1}))}));
+ const pick=sameGameParlay(legs);assert.equal(pick.legs.length,4);assert.ok(Math.abs(pick.odds-3)<.2);
 });

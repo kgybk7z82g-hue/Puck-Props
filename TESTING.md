@@ -77,3 +77,12 @@ Validation: application syntax, all seven regression tests, navigation order, se
 ## October 5, 2026 — SGP target around 3.0
 
 SGP candidates now qualify within 2.5–3.5 estimated decimal return and are selected by distance from 3.0, with higher estimated probability breaking exact ties. Existing individual probability and shared-history requirements remain. UI copy and shell version (v30) updated. Syntax checks and eight regression tests passed, including a check that a closer-to-three candidate wins over a higher-probability lower-return candidate. Returns remain model estimates rather than sportsbook prices.
+
+
+## October 5, 2026 — broader SGP coverage
+
+SGP now searches 1+, 2+, and 3+ shots plus 1+ point, across combinations of two to four distinct players. SGP receives the full candidate set rather than the daily-parlay top-12 cut. Within each team a bounded 32-candidate search prefers shared-history estimates (ten or more common games, then three or more). Selection targets 3.0; an outside-range estimate is displayed with a label rather than rejected. If no shared-history combination exists, a labeled approximation multiplies individual hit rates; it does not claim to measure same-game correlation. No player data or fewer than two supported players still prevents an estimate. Existing cross-game daily-parlay market thresholds are preserved.
+
+Current-season player logs are refreshed on generation in both picks and parlays so newly completed results are included on later days. Historical inputs exclude the selected slate date, preventing results from that slate influencing earlier pregame estimates. Shell version v31.
+
+Validation: ten regression tests and application syntax checks passed, covering outside-target output, limited samples, independent fallback, multi-leg targeting, duplicate-player avoidance and missing-data handling. Live verification of October 5 coverage could not be completed: the NHL scoreboard and roster endpoints returned HTTP 429. All-game output is therefore conditional on upstream histories being available; no invented history or guaranteed accuracy is claimed.
