@@ -41,3 +41,27 @@ Render controls the waiting page shown before a sleeping free web service serves
 ## Render update
 
 The existing Node start command and health route are preserved. Deploy the new commit from `main` through the existing Render service. This work did not change Render settings or trigger deployment explicitly. Close and reopen existing app tabs after deployment so the updated service worker can activate. The first visit installs the refreshed app shell; subsequent visits can use the branded wake screen.
+
+
+## October 5, 2026 — daily research and same-game parlays
+
+- Regeneration fetches a fresh scoreboard and accepts only FUT/PRE games with a known future start time. Status and clock are checked again after research; changing the date cannot publish the old slate.
+- Player estimates now blend smoothed last-10 form (40%), current season (30%), previous season (20%), and opponent history (up to 10%, reduced for fewer than five meetings). Missing components are reweighted. Both daily features use these inputs; team estimates also use both seasons and opponent results.
+- Same-game cards evaluate every remaining fixture. They select two distinct players on the same team, each with at least 60% marginal model probability and ten historical games. At least ten shared games are required; joint hits are smoothed toward the marginal product with eight pseudo-games. The highest estimated joint probability in the 2–4 decimal-return range is chosen. No qualifying combination yields an explicit explanation rather than a forced pick.
+- Full player game logs replace recent-team-box-derived histories. Parlay markets are shots and points; blocked shots are omitted because regular-season player logs do not reliably provide that field. Defense splits remain context rather than an uncalibrated ranking adjustment.
+- Shell cache version advanced to v27.
+
+Validation: application/service-worker syntax checks and all four Node tests passed (server regression plus eligibility, opponent-history weighting, and same-game joint-result checks). Live sportsbook pricing, live browser rendering and model calibration/backtesting were not verified. Returns remain estimated fair-value multiples, not executable sportsbook odds. This heuristic cannot establish that a parlay is safe or profitable.
+
+
+## October 5, 2026 — external win-probability average
+
+- Added `/api/win-projections/YYYY-MM-DD` with adapters for MoneyPuck date-specific preview rows, PuckCast public matchup cards, and PodiumOracle's public NHL page JSON. Only pregame model probabilities are used; bookmaker/market probabilities and MoneyPuck live or deserve-to-win meters are excluded.
+- External sources have equal weight, one contribution per provider. Home/away probabilities must be finite, between zero and one, and sum to approximately one. NHL IDs and team orientation must match; PodiumOracle's different ID scheme is matched by both teams and start time within two hours. Missing, malformed, ambiguous and different-day fixtures are omitted, without inventing probabilities.
+- Matchup details show the average, source count, linked individual home-win estimates, retrieval time and source disagreement. A single available provider is explicitly labeled. The local scoring estimate remains the fallback; it is not silently included as another external source. Parlay team-win legs use the same external average when available.
+- Public pages are cached server-side for five minutes (one minute after provider failure), with bounded date cache entries. Provider errors do not fail the other feeds. No credentials or paid downloads are used. Page formats may change; failures fall back rather than block the dashboard.
+- Shell version advanced to v28.
+
+Validation: seven Node tests passed, including observed provider-format fixtures, probability orientation, aliases, averaging, duplicate rejection, different-date rejection, source failure and endpoint routing. Syntax checks passed. A live October 5 check matched all four NHL fixtures to MoneyPuck and PodiumOracle, giving two-source averages. PuckCast returned October 4 fixture IDs, which were excluded. The Philadelphia at Tampa Bay home-win average was 64.035% at retrieval. These are observational integration checks, not evidence of forecast calibration or profitability. Browser layout was not verified in this update.
+
+Sources: https://moneypuck.com/about.htm, https://puckcast.ai/, https://podiumoracle.com/nhl. Provider fixtures contain only small relevant page fragments used for parser regression checks.

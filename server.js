@@ -4,6 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { getWinProjections } = require('./projections');
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -455,6 +456,16 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/health') {
     return send(res, 200, JSON.stringify({ ok: true, service: 'puck-props', version: 24 }), 'application/json; charset=utf-8');
+  }
+
+  const projectionMatch = url.pathname.match(/^\/api\/win-projections\/(\d{4}-\d{2}-\d{2})$/);
+  if (projectionMatch) {
+    try {
+      const date = projectionMatch[1];
+      if (!Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0,10) !== date) return send(res, 400, JSON.stringify({error:'Invalid slate date.'}), 'application/json; charset=utf-8');
+      const slate = await nhlJson(`/score/${date}`);
+      return send(res, 200, JSON.stringify(await getWinProjections(date, slate.games || [])), 'application/json; charset=utf-8');
+    } catch { return send(res, 502, JSON.stringify({error:'Could not load win projections.'}), 'application/json; charset=utf-8'); }
   }
 
   const goalieMatch = url.pathname.match(/^\/api\/starting-goalies\/(\d{4}-\d{2}-\d{2})$/);
