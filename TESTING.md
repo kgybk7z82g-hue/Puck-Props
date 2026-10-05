@@ -65,3 +65,10 @@ Validation: application/service-worker syntax checks and all four Node tests pas
 Validation: seven Node tests passed, including observed provider-format fixtures, probability orientation, aliases, averaging, duplicate rejection, different-date rejection, source failure and endpoint routing. Syntax checks passed. A live October 5 check matched all four NHL fixtures to MoneyPuck and PodiumOracle, giving two-source averages. PuckCast returned October 4 fixture IDs, which were excluded. The Philadelphia at Tampa Bay home-win average was 64.035% at retrieval. These are observational integration checks, not evidence of forecast calibration or profitability. Browser layout was not verified in this update.
 
 Sources: https://moneypuck.com/about.htm, https://puckcast.ai/, https://podiumoracle.com/nhl. Provider fixtures contain only small relevant page fragments used for parser regression checks.
+
+
+## October 5, 2026 — separate Same Game Parlays tab
+
+Moved matchup parlay cards into a dedicated SGP (Same Game Parlays) tab immediately after Daily Parlays. The new panel has its own date selector, refresh button and status display. Dates and research requests are shared between both parlay panels; both refresh buttons show progress during a shared request. Existing matchup eligibility and estimates are preserved. Shell version advanced to v29.
+
+Validation: application syntax, all seven regression tests, navigation order, separate output placement, required controls and unique HTML IDs passed. Browser visual inspection was not performed for this small layout change.
