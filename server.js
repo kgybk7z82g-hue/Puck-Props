@@ -21,6 +21,19 @@ const STATIC = new Map([
 const teamDefenseCache = new Map();
 const teamSpecialCache = new Map();
 const teamPeriodCache = new Map();
+const powerRankingsCache = new Map();
+
+async function getPowerRankingStats(season) {
+  const cached = powerRankingsCache.get(season);
+  if (cached?.expires > Date.now()) return cached.value;
+  const data = await nhlStatsJson(`https://api.nhle.com/stats/rest/en/team/summary?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=seasonId=${season}%20and%20gameTypeId=2`);
+  if (!Array.isArray(data.data)) throw new Error('Team statistics were not returned.');
+  const finite = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
+  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor)}));
+  const result = {season,rows,updatedAt:new Date().toISOString()};
+  powerRankingsCache.set(season,{value:result,expires:Date.now()+5*60000});
+  return result;
+}
 
 async function getTeamPeriodGoals(team, season) {
   const key = `${team}:${season}`, cached = teamPeriodCache.get(key);
@@ -342,6 +355,14 @@ async function getTeamSpecialStats(team, season) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (req.method !== 'GET') return send(res, 405, 'GET only');
+
+  const powerMatch = url.pathname.match(/^\/api\/power-rankings\/(\d{8})$/);
+  if (powerMatch) {
+    const season = powerMatch[1];
+    if (Number(season.slice(4)) !== Number(season.slice(0,4))+1) return send(res,400,JSON.stringify({error:'Invalid season.'}),'application/json; charset=utf-8');
+    try { return send(res,200,JSON.stringify(await getPowerRankingStats(season)),'application/json; charset=utf-8'); }
+    catch { return send(res,502,JSON.stringify({error:'Could not load NHL team statistics. Please refresh to retry.'}),'application/json; charset=utf-8'); }
+  }
 
   if (url.pathname === '/api/top-ten') return send(res,200,JSON.stringify(topTenService.snapshot(url.searchParams.get('refresh')==='1')),'application/json; charset=utf-8');
 

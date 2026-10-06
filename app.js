@@ -40,7 +40,7 @@ function status(id,msg,type=''){const el=$(id);el.textContent=msg;const pending=
 async function fetchJson(url,timeout=4500){const response=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(timeout)});if(!response.ok){let detail='';try{const body=await response.json();detail=body.error||body.message||''}catch{}throw Error(detail||`Request failed (HTTP ${response.status})`)}return response.json()}
 async function get(path,timeout=proxyServer?10000:3500){const url=path.startsWith('http')?path:proxyServer&&path.startsWith('/api/')?path:api+path;if(cache.has(url))return cache.get(url);const request=(async()=>{try{return await fetchJson(url,timeout)}catch(localError){if(proxyServer){const directNhl=url.startsWith('/api/nhl/v1/')?'https://api-web.nhle.com/v1'+url.slice('/api/nhl/v1'.length):'';if(!directNhl)throw localError;try{return await fetchJson(directNhl,3500)}catch{}const relays=['https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(directNhl),'https://api.allorigins.win/raw?url='+encodeURIComponent(directNhl)];try{return await Promise.any(relays.map(relay=>fetchJson(relay,4500)))}catch{if(localError.name==='TimeoutError')throw Error('The local NHL server and direct data feed both timed out.');if(localError instanceof TypeError)throw Error('Cannot reach the local Puck Props server or NHL data feed. Check that the server is running and your internet connection is available.');throw Error('Could not load NHL data from the local server or its fallback feeds.')}}const relays=['https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),'https://api.allorigins.win/raw?url='+encodeURIComponent(url)];try{return await Promise.any(relays.map(relay=>fetchJson(relay,4500)))}catch{throw Error('The NHL data service could not be reached. For reliable local access, launch the app with start.bat or run node server.js.')}}})();cache.set(url,request);try{return await request}catch(e){cache.delete(url);throw e}}
 function busy(btn,on,label){if(on){if(!btn.disabled)btn.dataset.label=btn.textContent;btn.textContent=label;btn.disabled=true}else{btn.textContent=btn.dataset.label||btn.textContent;btn.disabled=false}}
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab!=='teams'&&$('player').classList.contains('team-player-detail'))restoreTeamPlayerSections();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['scores','picks','bets','sameDay','topTen','history','teams','player'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.tab));if(b.dataset.tab==='teams'){renderTeamDirectory();if(!teamRows.length)loadTeams();else drawTeams()}}));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab!=='teams'&&$('player').classList.contains('team-player-detail'))restoreTeamPlayerSections();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['scores','picks','bets','sameDay','topTen','history','teams','powerRankings','player'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.tab));if(b.dataset.tab==='teams'){renderTeamDirectory();if(!teamRows.length)loadTeams();else drawTeams()}}));
 
 const winProjectionGames=new Map();let activeMatchupId='';
 async function loadWinProjections(date){try{const data=await fetchJson(`/api/win-projections/${encodeURIComponent(date)}`,22000);winProjectionGames.clear();for(const [id,p]of Object.entries(data.games||{}))winProjectionGames.set(id,p);return data}catch{winProjectionGames.clear();return null}}
@@ -403,6 +403,35 @@ async function loadTopTen(refresh=false){
  }catch(error){status('topTenStatus',error.message+(topTenData?' Previous rankings are still displayed.':''),'error')}
  finally{topTenLoading=false;busy($('refreshTopTen'),false)}
 }
+let powerData=null,powerLoading=false;
+function buildPowerRankings(rows){
+ const categories={};
+ const valid=value=>typeof value==='number'&&Number.isFinite(value);
+ const ranked=(list,key,ascending=false)=>{
+  const sorted=list.slice().sort((a,b)=>(ascending?a[key]-b[key]:b[key]-a[key])||String(a.name).localeCompare(String(b.name)));
+  let rank=0;return sorted.map((row,i)=>{if(i===0||row[key]!==sorted[i-1][key])rank=i+1;return {...row,rank}});
+ };
+ for(const key of ['pp','pk','goals'])categories[key]=ranked(rows.filter(t=>t.gamesPlayed>0&&valid(t[key])),key);
+ const ranks=Object.fromEntries(Object.entries(categories).map(([key,list])=>[key,new Map(list.map(t=>[t.id,t.rank]))]));
+ categories.combined=ranked(rows.filter(t=>['pp','pk','goals'].every(key=>ranks[key].has(t.id))).map(t=>({...t,ppRank:ranks.pp.get(t.id),pkRank:ranks.pk.get(t.id),goalsRank:ranks.goals.get(t.id),average:(ranks.pp.get(t.id)+ranks.pk.get(t.id)+ranks.goals.get(t.id))/3})),'average',true);
+ return categories;
+}
+function renderPowerRankings(){
+ const lists=buildPowerRankings(powerData.rows);
+ $('powerColumns').innerHTML=[['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals scored'],['combined','Power Rankings']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'Goals':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">PP #${t.ppRank} · PK #${t.pkRank} · Goals #${t.goalsRank}</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goals:(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
+ return lists;
+}
+async function loadPowerRankings(){
+ if(powerLoading)return;powerLoading=true;busy($('refreshPowerRankings'),true,'Loading…');const season=$('powerSeason').value;status('powerStatus','Loading NHL team rankings…');
+ try{const data=await fetchJson(`/api/power-rankings/${season}`,20000);if($('powerSeason').value!==season)return;powerData=data;const lists=renderPowerRankings();status('powerStatus',`${season.slice(0,4)}–${season.slice(4)} regular season · ${lists.combined.length} teams with complete statistics · ${data.rows.length?'Updated '+new Date(data.updatedAt).toLocaleString():'No statistics available yet. Select a previous season.'}`,data.rows.length?'success':'')}
+ catch(error){status('powerStatus',error.message,'error')}
+ finally{powerLoading=false;busy($('refreshPowerRankings'),false);if($('powerSeason').value!==season)loadPowerRankings()}
+}
+const powerCurrentSeason=String(seasonIdsForDate(dateStr(new Date()))[0]);
+$('powerSeason').innerHTML=Array.from({length:3},(_,i)=>{const start=Number(powerCurrentSeason.slice(0,4))-i,season=`${start}${start+1}`;return `<option value="${season}">${start}–${start+1}</option>`}).join('');
+document.querySelector('[data-tab="powerRankings"]').addEventListener('click',()=>{if(!powerData)loadPowerRankings()});
+$('refreshPowerRankings').addEventListener('click',loadPowerRankings);
+$('powerSeason').addEventListener('change',()=>{powerData=null;$('powerColumns').innerHTML='';loadPowerRankings()});
 document.querySelector('[data-tab="topTen"]').addEventListener('click',()=>loadTopTen());
 $('refreshTopTen').addEventListener('click',()=>loadTopTen(true));
 document.querySelectorAll('[data-top-ten]').forEach(button=>button.addEventListener('click',()=>{topTenCategory=button.dataset.topTen;document.querySelectorAll('[data-top-ten]').forEach(b=>{b.classList.toggle('active',b===button);b.setAttribute('aria-selected',String(b===button))});if(topTenData)renderTopTen()}));
