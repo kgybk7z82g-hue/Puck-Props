@@ -421,7 +421,7 @@ function buildPowerRankings(rows){
 }
 function renderPowerRankings(){
  const lists=buildPowerRankings(powerData.rows);
- $('powerColumns').innerHTML=[['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals per game'],['combined','Power Rankings']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'G/GP':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">PP #${t.ppRank} · PK #${t.pkRank} · G/GP #${t.goalsRank}</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goalsPerGame.toFixed(2):(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
+ $('powerColumns').innerHTML=[['combined','Power Rankings'],['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals per game']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'G/GP':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">PP #${t.ppRank} · PK #${t.pkRank} · G/GP #${t.goalsRank}</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goalsPerGame.toFixed(2):(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
  return lists;
 }
 async function loadPowerRankings(){
