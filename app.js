@@ -40,7 +40,7 @@ function status(id,msg,type=''){const el=$(id);el.textContent=msg;const pending=
 async function fetchJson(url,timeout=4500){const response=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(timeout)});if(!response.ok){let detail='';try{const body=await response.json();detail=body.error||body.message||''}catch{}throw Error(detail||`Request failed (HTTP ${response.status})`)}return response.json()}
 async function get(path,timeout=proxyServer?10000:3500){const url=path.startsWith('http')?path:proxyServer&&path.startsWith('/api/')?path:api+path;if(cache.has(url))return cache.get(url);const request=(async()=>{try{return await fetchJson(url,timeout)}catch(localError){if(proxyServer){const directNhl=url.startsWith('/api/nhl/v1/')?'https://api-web.nhle.com/v1'+url.slice('/api/nhl/v1'.length):'';if(!directNhl)throw localError;try{return await fetchJson(directNhl,3500)}catch{}const relays=['https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(directNhl),'https://api.allorigins.win/raw?url='+encodeURIComponent(directNhl)];try{return await Promise.any(relays.map(relay=>fetchJson(relay,4500)))}catch{if(localError.name==='TimeoutError')throw Error('The local NHL server and direct data feed both timed out.');if(localError instanceof TypeError)throw Error('Cannot reach the local Puck Props server or NHL data feed. Check that the server is running and your internet connection is available.');throw Error('Could not load NHL data from the local server or its fallback feeds.')}}const relays=['https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),'https://api.allorigins.win/raw?url='+encodeURIComponent(url)];try{return await Promise.any(relays.map(relay=>fetchJson(relay,4500)))}catch{throw Error('The NHL data service could not be reached. For reliable local access, launch the app with start.bat or run node server.js.')}}})();cache.set(url,request);try{return await request}catch(e){cache.delete(url);throw e}}
 function busy(btn,on,label){if(on){if(!btn.disabled)btn.dataset.label=btn.textContent;btn.textContent=label;btn.disabled=true}else{btn.textContent=btn.dataset.label||btn.textContent;btn.disabled=false}}
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab!=='teams'&&$('player').classList.contains('team-player-detail'))restoreTeamPlayerSections();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['scores','picks','bets','sameDay','history','teams','player'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.tab));if(b.dataset.tab==='teams'){renderTeamDirectory();if(!teamRows.length)loadTeams();else drawTeams()}}));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab!=='teams'&&$('player').classList.contains('team-player-detail'))restoreTeamPlayerSections();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['scores','picks','bets','sameDay','topTen','history','teams','player'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.tab));if(b.dataset.tab==='teams'){renderTeamDirectory();if(!teamRows.length)loadTeams();else drawTeams()}}));
 
 const winProjectionGames=new Map();let activeMatchupId='';
 async function loadWinProjections(date){try{const data=await fetchJson(`/api/win-projections/${encodeURIComponent(date)}`,22000);winProjectionGames.clear();for(const [id,p]of Object.entries(data.games||{}))winProjectionGames.set(id,p);return data}catch{winProjectionGames.clear();return null}}
@@ -378,3 +378,31 @@ function updateBackSwipeEdge(){backSwipeEdge.classList.toggle('active',Boolean(v
 new MutationObserver(updateBackSwipeEdge).observe(document.querySelector('main'),{subtree:true,attributes:true,attributeFilter:['class'],childList:true});
 window.addEventListener('resize',updateBackSwipeEdge);
 updateBackSwipeEdge();
+
+let topTenData=null,topTenCategory='points',topTenLoading=false;
+const topTenLabels={points:'Points',goals:'Goals',assists:'Assists',shots:'Shots on goal',blockedShots:'Blocked shots'};
+function renderTopTen(){
+ const rows=topTenData?.rankings?.[topTenCategory]||[];
+ $('topTenOut').innerHTML=rows.length?'<table><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>'+esc(topTenLabels[topTenCategory])+'</th><th>Per game</th><th>Games</th><th>Window</th></tr></thead><tbody>'+rows.map(p=>'<tr><td>'+p.rank+'</td><td><b>'+esc(p.name)+'</b></td><td>'+esc(p.team)+'</td><td><b>'+p.total+'</b></td><td>'+p.average.toFixed(2)+'</td><td>'+p.games+'</td><td>'+esc(p.from)+' – '+esc(p.to)+'</td></tr>').join('')+'</tbody></table>':'<div class="empty">No complete ten-game samples are available for this category yet.</div>';
+}
+async function loadTopTen(refresh=false){
+ if(topTenLoading)return;
+ topTenLoading=true;busy($('refreshTopTen'),true,'Comparing the league…');
+ try{
+  let first=true;
+  while(true){
+   const data=await fetchJson('/api/top-ten'+(first&&refresh?'?refresh=1':''),15000);first=false;
+   if(data.state==='error')throw Error(data.error||'League rankings are unavailable.');
+   if(data.state==='ready'){
+    topTenData=data;renderTopTen();const partial=data.failedRosters||data.failedPlayers||data.failedGames||data.blockedPlayers<data.qualifiedPlayers;
+    status('topTenStatus',(partial?'Partial league results · ':'')+data.qualifiedPlayers+' skaters with complete ten-game samples · '+data.blockedPlayers+' with blocked-shot data · updated '+new Date(data.updatedAt).toLocaleString()+(partial?' · Missing data: '+data.failedRosters+' team rosters, '+data.failedPlayers+' player histories, '+data.failedGames+' game box scores. Refresh to retry.':''),partial?'':'success');break;
+   }
+   status('topTenStatus',data.phase+' · '+data.done+'/'+data.total+' · First load may take a few minutes.');
+   await new Promise(resolve=>setTimeout(resolve,2500));
+  }
+ }catch(error){status('topTenStatus',error.message+(topTenData?' Previous rankings are still displayed.':''),'error')}
+ finally{topTenLoading=false;busy($('refreshTopTen'),false)}
+}
+document.querySelector('[data-tab="topTen"]').addEventListener('click',()=>loadTopTen());
+$('refreshTopTen').addEventListener('click',()=>loadTopTen(true));
+document.querySelectorAll('[data-top-ten]').forEach(button=>button.addEventListener('click',()=>{topTenCategory=button.dataset.topTen;document.querySelectorAll('[data-top-ten]').forEach(b=>{b.classList.toggle('active',b===button);b.setAttribute('aria-selected',String(b===button))});if(topTenData)renderTopTen()}));

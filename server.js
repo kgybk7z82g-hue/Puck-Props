@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const { getWinProjections } = require('./projections');
 const { parseGoaliePost, mergeGoalies } = require('./goaliepost');
+const { createTopTenService } = require('./topten');
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -63,6 +64,14 @@ async function getTeamPeriodGoals(team, season) {
 const startingGoalieCache = new Map();
 
 const teamCodeByName = new Map([['anaheim ducks','ANA'],['boston bruins','BOS'],['buffalo sabres','BUF'],['calgary flames','CGY'],['carolina hurricanes','CAR'],['chicago blackhawks','CHI'],['colorado avalanche','COL'],['columbus blue jackets','CBJ'],['dallas stars','DAL'],['detroit red wings','DET'],['edmonton oilers','EDM'],['florida panthers','FLA'],['los angeles kings','LAK'],['minnesota wild','MIN'],['montreal canadiens','MTL'],['nashville predators','NSH'],['new jersey devils','NJD'],['new york islanders','NYI'],['new york rangers','NYR'],['ottawa senators','OTT'],['philadelphia flyers','PHI'],['pittsburgh penguins','PIT'],['san jose sharks','SJS'],['seattle kraken','SEA'],['st. louis blues','STL'],['utah mammoth','UTA'],['tampa bay lightning','TBL'],['toronto maple leafs','TOR'],['vancouver canucks','VAN'],['vegas golden knights','VGK'],['washington capitals','WSH'],['winnipeg jets','WPG']]);
+
+async function topTenJson(endpoint){
+ for(let attempt=0;attempt<3;attempt++){
+  await new Promise(resolve=>setTimeout(resolve,attempt?1000*attempt:250));
+  try{return await nhlJson(endpoint)}catch(error){if(attempt===2)throw error}
+ }
+}
+const topTenService=createTopTenService({get:topTenJson,teams:[...teamCodeByName.values()]});
 
 function normalizeStartingGoalies(pageProps) {
   const byTeam = {};
@@ -333,6 +342,8 @@ async function getTeamSpecialStats(team, season) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (req.method !== 'GET') return send(res, 405, 'GET only');
+
+  if (url.pathname === '/api/top-ten') return send(res,200,JSON.stringify(topTenService.snapshot(url.searchParams.get('refresh')==='1')),'application/json; charset=utf-8');
 
   if (url.pathname === '/api/health') {
     return send(res, 200, JSON.stringify({ ok: true, service: 'puck-props', version: 24 }), 'application/json; charset=utf-8');
