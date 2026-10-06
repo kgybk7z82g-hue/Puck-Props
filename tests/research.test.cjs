@@ -64,3 +64,14 @@ test('role selection uses latest games and excludes missing or malformed ice tim
  const histories=new Map([['recent',[...history('21:30'),{gameDate:'2025-09-01',toi:'05:00'}]],['old',[...history('11:00'),{gameDate:'2025-09-01',toi:'30:00'}]],['missing',[{gameDate:'2026-09-01'}]],['bad',history('20:99')],['goalie',history('60:00')]]);
  const core=context.selectCorePlayers(players,histories);assert.equal(core.size,2);assert.equal(core.get('recent').roleRank,1);assert.equal(core.get('recent').roleMinutes,21.5);assert.equal(core.get('old').roleMinutes,11);
 });
+
+test('SGP searches opposing players using actual shared game IDs',()=>{
+ const leg=(id,team,hits)=>({id,playerId:id,team,probability:.7,sample:20,key:'shots',threshold:2,history:Array.from({length:20},(_,i)=>({gameId:100+i,teamAbbrev:team,shots:i<hits?3:0}))});
+ const legs=[leg('a','TOR',20),leg('b','TOR',7),leg('c','BOS',3)];
+ const pick=sameGameParlay(legs);assert.equal(pick.method,'joint');assert.equal(pick.jointSample,20);assert.equal(pick.jointHits,3);assert.equal(new Set(pick.legs.map(l=>l.team)).size,2);
+ const sameTeam=sameGameParlay([leg('a','TOR',20),leg('b','TOR',3),leg('c','BOS',7)]);assert.ok(sameTeam.legs.every(l=>l.team==='TOR'));
+});
+test('SGP does not join different opposing-team games by date',()=>{
+ const leg=(id,team,offset)=>({id,playerId:id,team,probability:.5,sample:3,key:'shots',threshold:1,history:Array.from({length:3},(_,i)=>({gameId:offset+i,gameDate:'day-'+i,shots:1}))});
+ assert.equal(sameGameParlay([leg('a','TOR',100),leg('b','BOS',200)]).method,'marginal');
+});

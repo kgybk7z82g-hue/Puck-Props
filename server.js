@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { getWinProjections } = require('./projections');
+const { getSportsbookOdds } = require('./sportsbook');
+const { parseGoaliePost, mergeGoalies } = require('./goaliepost');
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -104,14 +106,24 @@ function normalizeStartingGoalies(pageProps) {
 async function getStartingGoalies(date) {
   const cached = startingGoalieCache.get(date);
   if (cached && cached.expires > Date.now()) return cached.value;
-  const response = await fetch(`https://www.dailyfaceoff.com/starting-goalies/${date}`, { headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 PuckProps/1.0' }, signal: AbortSignal.timeout(12000) });
-  if (!response.ok) throw new Error(`Starting-goalie source returned HTTP ${response.status}.`);
-  const html = await response.text();
-  const match = html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
-  if (!match) throw new Error('Starting-goalie source data was not available.');
-  const nextData = JSON.parse(match[1]);
-  const goalies = normalizeStartingGoalies(nextData.props?.pageProps || nextData.pageProps || {});
-  const result = { date, source: 'Daily Faceoff', sourceUrl: `https://www.dailyfaceoff.com/starting-goalies/${date}`, goalies, updatedAt: new Date().toISOString() };
+  const sources = await Promise.allSettled([
+    (async()=>{
+      const response=await fetch(`https://www.dailyfaceoff.com/starting-goalies/${date}`,{headers:{Accept:'text/html','User-Agent':'Mozilla/5.0 PuckProps/1.0'},signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('Daily Faceoff unavailable');
+      const html=await response.text(),match=html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+      if(!match)throw Error('Daily Faceoff report format unavailable');
+      const data=JSON.parse(match[1]),reports=normalizeStartingGoalies(data.props?.pageProps||data.pageProps||{});
+      return Object.fromEntries(Object.entries(reports).map(([team,report])=>[team,{...report,source:'Daily Faceoff',sourceUrl:`https://www.dailyfaceoff.com/starting-goalies/${date}`}]));
+    })(),
+    (async()=>{
+      const response=await fetch('https://goaliepost.com/',{headers:{Accept:'text/html'},signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('GoaliePost unavailable');
+      return parseGoaliePost(await response.text(),date);
+    })()
+  ]);
+  if(sources.every(s=>s.status==='rejected'))throw Error('Starting goalie sources are unavailable.');
+  const goalies=mergeGoalies(sources[0].status==='fulfilled'?sources[0].value:{},sources[1].status==='fulfilled'?sources[1].value:{});
+  const result={date,source:'Daily Faceoff + GoaliePost',sourceUrl:`https://www.dailyfaceoff.com/starting-goalies/${date}`,goalies,warnings:sources.flatMap((s,i)=>s.status==='rejected'?[['Daily Faceoff','GoaliePost'][i]+' unavailable']:[]),updatedAt:new Date().toISOString()};
   startingGoalieCache.set(date, { value: result, expires: Date.now() + 5 * 60 * 1000 });
   return result;
 }
@@ -435,6 +447,16 @@ async function getTeamSpecialStats(team, season) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'POST' && url.pathname === '/api/odds/sportsbooks') {
+    try {
+      const body = await readJsonBody(req);
+      const apiKey = String(body.apiKey || process.env.THE_ODDS_API_KEY || '').trim();
+      if (!apiKey || apiKey.length > 512) return send(res, 400, JSON.stringify({error:'Enter your The Odds API key to load FanDuel and DraftKings prices.'}), 'application/json; charset=utf-8');
+      const from = new Date(body.from), to = new Date(body.to);
+      if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || to-from > 26*3600000) return send(res,400,JSON.stringify({error:'Choose a valid single-day slate.'}),'application/json; charset=utf-8');
+      return send(res,200,JSON.stringify(await getSportsbookOdds({apiKey,from:from.toISOString().replace('.000Z','Z'),to:to.toISOString().replace('.000Z','Z')})),'application/json; charset=utf-8');
+    } catch { return send(res,502,JSON.stringify({error:'Could not load sportsbook odds. Check your key, feed access and connection.'}),'application/json; charset=utf-8'); }
+  }
   if (req.method === 'POST' && url.pathname === '/api/odds/daily-picks') {
     try {
       const body = await readJsonBody(req);
