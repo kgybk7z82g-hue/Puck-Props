@@ -30,6 +30,6 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
   assert.equal((await fetch(base+'/',{method:'POST'})).status,405);
   assert.equal((await fetch(base+'/api/nhl/v1/player/999/landing')).status,502);
   assert.equal((await fetch(base+'/api/nhl/v1/player/998/landing')).status,503);
-  assert.equal((await fetch(base+'/api/odds/daily-picks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:'2026-10-02'})})).status,400);
+  assert.equal((await fetch(base+'/api/odds/daily-picks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:'2026-10-02'})})).status,405);
  }finally{child.kill();await new Promise(resolve=>child.once('exit',resolve))}
 });

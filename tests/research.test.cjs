@@ -29,7 +29,7 @@ test('same-game returns respect range, shared outcomes and distinct players',()=
 });
 
 
-test('same-game selection favors estimated return closest to four',()=>{
+test('same-game selection prefers the target range over higher-probability outside options',()=>{
  const leg=(id,hits)=>({id,playerId:id,team:'TOR',probability:.7,sample:20,key:'shots',threshold:2,history:Array.from({length:20},(_,i)=>({gameDate:`2026-09-${String(i+1).padStart(2,'0')}`,shots:i<hits?3:0}))});
  const lower=sameGameParlay([leg('1',20),leg('2',7)]),nearer=sameGameParlay([leg('1',20),leg('3',3)]);
  assert.ok(lower&&nearer);assert.ok(lower.probability>nearer.probability);
@@ -74,4 +74,15 @@ test('SGP searches opposing players using actual shared game IDs',()=>{
 test('SGP does not join different opposing-team games by date',()=>{
  const leg=(id,team,offset)=>({id,playerId:id,team,probability:.5,sample:3,key:'shots',threshold:1,history:Array.from({length:3},(_,i)=>({gameId:offset+i,gameDate:'day-'+i,shots:1}))});
  assert.equal(sameGameParlay([leg('a','TOR',100),leg('b','BOS',200)]).method,'marginal');
+});
+
+test('SGP lets a mixed-team estimate beat a larger teammate sample',()=>{
+ const leg=(id,team,probability,offset,hits)=>({id,playerId:id,team,probability,sample:20,key:'shots',threshold:1,history:Array.from({length:20},(_,i)=>({gameId:offset+i,shots:i<hits?1:0}))});
+ const pick=sameGameParlay([leg('a','TOR',.6,100,20),leg('b','TOR',.6,100,8),leg('c','BOS',.46,200,10)]);
+ assert.equal(pick.method,'marginal');assert.equal(pick.outsideTarget,false);assert.equal(new Set(pick.legs.map(l=>l.team)).size,2);assert.ok(pick.odds>=3.5&&pick.odds<=4.5);
+});
+test('SGP favors higher estimated hit chance among candidates inside the target',()=>{
+ const leg=(id,p,offset)=>({id,playerId:id,team:'TOR',probability:p,sample:3,key:'shots',threshold:1,history:Array.from({length:3},(_,i)=>({gameId:offset+i,shots:1}))});
+ const pick=sameGameParlay([leg('a',.6,100),leg('b',.46,200),leg('c',.42,300)]);
+ assert.equal(pick.legs.map(l=>l.playerId).sort().join(','),'a,b');
 });

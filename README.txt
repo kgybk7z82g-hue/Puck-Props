@@ -22,9 +22,7 @@ Features
 
 The local server proxies only the NHL score, player, roster, standings, schedule, boxscore, team-defense, and player-search requests used by the app. This avoids dependence on unreliable public CORS relays. If start.bat reports an older server on port 4173, stop that older server before starting the app again. Recent matchup searches stop once the requested number of games is found; career history requests seasons in small parallel batches. Data availability depends on the NHL services and internet connection. This is an unofficial personal project.
 
-Live sportsbook odds: In Daily Parlays, choose a slate date and use Load sportsbook odds. Enter a key from https://the-odds-api.com/ or configure THE_ODDS_API_KEY on the server. The browser does not save entered keys. The feed requests FanDuel and DraftKings NHL moneylines and player shots, points, goals, assists and blocked shots. FanDuel wins for identical selections; DraftKings fills gaps. Prices retain exact lines and source timestamps. Upcoming games only; successful feeds cache for five minutes. Individual prices do not represent combined SGP quotes. Market access depends on your provider plan. No live authenticated feed was verified.
 
-Generated Daily Parlays and Same Game Parlays now show exact matching sportsbook leg quotes after loading odds. Matching requires both teams, start time, player, market and threshold. A daily combined price is displayed only if every leg has a quote at the same book. SGP combined pricing remains unquoted because correlation requires the sportsbook bet slip.
 
 Starter reports use Daily Faceoff with GoaliePost as a secondary source. GoaliePost embedded public reports are matched to the requested NHL date (Eastern time), fill missing teams and can confirm the same goalie. Different names show conflicting reports. Individual source failures do not discard the other source. Public page formats may change.
 
