@@ -18,3 +18,17 @@ test('missing metrics and unplayed teams do not produce fabricated combined rank
  const r=context.buildPowerRankings([{id:1,name:'Complete',gamesPlayed:1,pp:0,pk:0,goals:0},{id:2,name:'Missing',gamesPlayed:1,pp:null,pk:.9,goals:4},{id:3,name:'Unplayed',gamesPlayed:0,pp:0,pk:0,goals:0}]);
  assert.equal(r.pp.length,1);assert.equal(r.combined.length,1);assert.equal(r.combined[0].name,'Complete');assert.equal(r.pk.length,2);
 });
+test('goals per game corrects for unequal schedules and feeds the combined rank',()=>{
+ const r=context.buildPowerRankings([
+  {id:1,name:'More games',gamesPlayed:20,pp:.2,pk:.8,goals:60},
+  {id:2,name:'Fewer games',gamesPlayed:10,pp:.2,pk:.8,goals:40},
+  {id:3,name:'Equal rate',gamesPlayed:5,pp:.2,pk:.8,goals:20}
+ ]);
+ assert.equal(r.goals[0].goalsPerGame,4);
+ assert.equal(r.goals.find(t=>t.id===1).rank,3);
+ assert.equal(r.goals.find(t=>t.id===2).rank,1);
+ assert.equal(r.goals.find(t=>t.id===3).rank,1);
+ assert.equal(r.combined.find(t=>t.id===1).average,5/3);
+ assert.equal(r.combined.find(t=>t.id===2).average,1);
+ assert.equal(r.combined.find(t=>t.id===3).average,1);
+});

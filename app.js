@@ -411,14 +411,17 @@ function buildPowerRankings(rows){
   const sorted=list.slice().sort((a,b)=>(ascending?a[key]-b[key]:b[key]-a[key])||String(a.name).localeCompare(String(b.name)));
   let rank=0;return sorted.map((row,i)=>{if(i===0||row[key]!==sorted[i-1][key])rank=i+1;return {...row,rank}});
  };
- for(const key of ['pp','pk','goals'])categories[key]=ranked(rows.filter(t=>t.gamesPlayed>0&&valid(t[key])),key);
+ for(const key of ['pp','pk','goals']){
+  const eligible=rows.filter(t=>valid(t.gamesPlayed)&&t.gamesPlayed>0&&valid(t[key]));
+  categories[key]=key==='goals'?ranked(eligible.map(t=>({...t,goalsPerGame:t.goals/t.gamesPlayed})),'goalsPerGame'):ranked(eligible,key);
+ }
  const ranks=Object.fromEntries(Object.entries(categories).map(([key,list])=>[key,new Map(list.map(t=>[t.id,t.rank]))]));
  categories.combined=ranked(rows.filter(t=>['pp','pk','goals'].every(key=>ranks[key].has(t.id))).map(t=>({...t,ppRank:ranks.pp.get(t.id),pkRank:ranks.pk.get(t.id),goalsRank:ranks.goals.get(t.id),average:(ranks.pp.get(t.id)+ranks.pk.get(t.id)+ranks.goals.get(t.id))/3})),'average',true);
  return categories;
 }
 function renderPowerRankings(){
  const lists=buildPowerRankings(powerData.rows);
- $('powerColumns').innerHTML=[['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals scored'],['combined','Power Rankings']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'Goals':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">PP #${t.ppRank} · PK #${t.pkRank} · Goals #${t.goalsRank}</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goals:(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
+ $('powerColumns').innerHTML=[['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals per game'],['combined','Power Rankings']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'G/GP':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">PP #${t.ppRank} · PK #${t.pkRank} · G/GP #${t.goalsRank}</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goalsPerGame.toFixed(2):(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
  return lists;
 }
 async function loadPowerRankings(){
