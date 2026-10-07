@@ -198,6 +198,10 @@ async function getTeamDefense(team, season) {
     const games = (schedule.games || []).filter(game => game.gameType === 2 && ['OFF', 'FINAL'].includes(game.gameState));
     const allowed = {
       Forwards: { shots: 0, points: 0, goals: 0 },
+      Centers: { shots: 0, points: 0, goals: 0 },
+      LeftWings: { shots: 0, points: 0, goals: 0 },
+      RightWings: { shots: 0, points: 0, goals: 0 },
+      UnknownForwards: { shots: 0, points: 0, goals: 0 },
       Defensemen: { shots: 0, points: 0, goals: 0 },
       Goalies: { shots: 0, points: 0, goals: 0 },
     };
@@ -213,9 +217,16 @@ async function getTeamDefense(team, season) {
           const opponentStats = box.playerByGameStats?.[opposingSide] || {};
           for (const [group, bucket] of [['Forwards', 'forwards'], ['Defensemen', 'defense'], ['Goalies', 'goalies']]) {
             for (const player of opponentStats[bucket] || []) {
-              allowed[group].shots += Number(player.sog) || 0;
-              allowed[group].points += Number(player.points) || 0;
-              allowed[group].goals += Number(player.goals) || 0;
+              const groups = [group];
+              if (bucket === 'forwards') {
+                const position = String(player.position || player.positionCode || '').toUpperCase();
+                groups.push(({ C: 'Centers', L: 'LeftWings', LW: 'LeftWings', R: 'RightWings', RW: 'RightWings' })[position] || 'UnknownForwards');
+              }
+              for (const positionGroup of groups) {
+                allowed[positionGroup].shots += Number(player.sog) || 0;
+                allowed[positionGroup].points += Number(player.points) || 0;
+                allowed[positionGroup].goals += Number(player.goals) || 0;
+              }
             }
           }
           gamesProcessed++;

@@ -160,7 +160,8 @@ async function loadTeamDefense(ab,season){
   const seasonLabel=String(data.season).replace(/(\d{4})(\d{4})/,'$1–$2');
   if(!data.gamesProcessed){statusNode.textContent=data.gamesScheduled?'Game details could not be loaded yet. Please try again shortly.':`No completed regular-season games for ${seasonLabel} yet.`;return}
   statusNode.textContent=`${data.team} · ${seasonLabel} · ${data.gamesProcessed} team games${data.failed?` · ${data.failed} game details unavailable`:''}`;
-  const positions=[['Forwards',data.allowed.Forwards],['Defensemen',data.allowed.Defensemen],['Goalies',data.allowed.Goalies]];
+  const positions=[['Center',data.allowed.Centers],['Left Wing',data.allowed.LeftWings],['Right Wing',data.allowed.RightWings],['Defence',data.allowed.Defensemen],['Goalies',data.allowed.Goalies]];
+  if(data.allowed.UnknownForwards&&Object.values(data.allowed.UnknownForwards).some(value=>value>0))positions.push(['Forward (position unavailable)',data.allowed.UnknownForwards]);
   tableNode.innerHTML='<table><thead><tr><th>Opponent position</th><th>Shots allowed</th><th>SOG / game</th><th>Goals allowed</th><th>Goals / game</th><th>Points allowed</th><th>PTS / game</th></tr></thead><tbody>'+positions.map(([name,stats])=>`<tr><td><b>${name}</b></td><td>${stats.shots}</td><td>${(stats.shots/data.gamesProcessed).toFixed(1)}</td><td>${stats.goals||0}</td><td>${((stats.goals||0)/data.gamesProcessed).toFixed(2)}</td><td>${stats.points}</td><td>${(stats.points/data.gamesProcessed).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
  }catch(e){if(activeDirectoryTeam===ab)statusNode.textContent=e.message}
 }
