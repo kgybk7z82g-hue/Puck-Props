@@ -7,6 +7,7 @@ const path = require('node:path');
 const { getWinProjections } = require('./projections');
 const { parseGoaliePost, mergeGoalies } = require('./goaliepost');
 const { createTopTenService } = require('./topten');
+const { createFirstGoalsService } = require('./firstgoals');
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -86,6 +87,7 @@ async function topTenJson(endpoint){
 }
 const topTenService=createTopTenService({get:topTenJson,teams:[...teamCodeByName.values()]});
 
+const getFirstGoals = createFirstGoalsService({get:nhlJson,teams:[...teamCodeByName.values()]});
 function normalizeStartingGoalies(pageProps) {
   const byTeam = {};
   const seen = new Set();
@@ -367,6 +369,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (req.method !== 'GET') return send(res, 405, 'GET only');
 
+  const firstGoalsMatch = url.pathname.match(/^\/api\/first-goals\/(\d{8})$/);
+  if (firstGoalsMatch) {
+    try { return send(res,200,JSON.stringify(await getFirstGoals(firstGoalsMatch[1])),'application/json; charset=utf-8'); }
+    catch(error) { return send(res,502,JSON.stringify({error:error.message}),'application/json; charset=utf-8'); }
+  }
   const powerMatch = url.pathname.match(/^\/api\/power-rankings\/(\d{8})$/);
   if (powerMatch) {
     const season = powerMatch[1];

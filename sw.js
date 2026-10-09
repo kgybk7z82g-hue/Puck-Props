@@ -1,5 +1,5 @@
-const CACHE='puck-props-v50';
-const SHELL=['./','./index.html','./app.js?v=50','./manifest.json','./icon.svg'];
+const CACHE='puck-props-v51';
+const SHELL=['./','./index.html','./app.js?v=51','./manifest.json','./icon.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
  const keys=await caches.keys();await Promise.all(keys.filter(key=>key.startsWith('puck-props-')&&key!==CACHE).map(key=>caches.delete(key)));await self.clients.claim();
