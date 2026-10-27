@@ -8,6 +8,7 @@ const { getWinProjections } = require('./projections');
 const { parseGoaliePost, mergeGoalies } = require('./goaliepost');
 const { createTopTenService } = require('./topten');
 const { createFirstGoalsService } = require('./firstgoals');
+const { createTravelService } = require('./travel');
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -88,6 +89,11 @@ async function topTenJson(endpoint){
 const topTenService=createTopTenService({get:topTenJson,teams:[...teamCodeByName.values()]});
 
 const getFirstGoals = createFirstGoalsService({get:nhlJson,teams:[...teamCodeByName.values()]});
+const getTravel = createTravelService({getNhl:nhlJson,teams:[...teamCodeByName.values()],fetchJson:async url=>{
+  const response=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw Error('NHL Flights is unavailable (HTTP '+response.status+'). Please retry shortly.');
+  return response.json();
+}});
 function normalizeStartingGoalies(pageProps) {
   const byTeam = {};
   const seen = new Set();
@@ -368,6 +374,14 @@ async function getTeamSpecialStats(team, season) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (req.method !== 'GET') return send(res, 405, 'GET only');
+  if (url.pathname === '/api/travel') {
+    const team=url.searchParams.get('team')||'';
+    const player=url.searchParams.get('player')||'';
+    if(player && (!/^\d{6,9}$/.test(player)||!team))return send(res,400,JSON.stringify({error:'Invalid player or team.'}),'application/json; charset=utf-8');
+    if(team && ![...teamCodeByName.values()].includes(team))return send(res,400,JSON.stringify({error:'Unknown NHL team.'}),'application/json; charset=utf-8');
+    try{return send(res,200,JSON.stringify(await getTravel(team,player)),'application/json; charset=utf-8');}
+    catch(error){return send(res,502,JSON.stringify({error:error.message}),'application/json; charset=utf-8');}
+  }
 
   const firstGoalsMatch = url.pathname.match(/^\/api\/first-goals\/(\d{8})$/);
   if (firstGoalsMatch) {
