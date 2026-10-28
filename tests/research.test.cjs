@@ -7,6 +7,13 @@ const source=fs.readFileSync('app.js','utf8');
 const context=vm.createContext({num:x=>Number(x)||0,Date,Map,Set});
 for(const [start,end] of [['function weightedRate','function gameNotStarted'],['function gameNotStarted','function pickPropLabel']])vm.runInContext(source.slice(source.indexOf(start),source.indexOf(end)),context);
 const {gameNotStarted,researchRate,sameGameParlay}=context;
+
+test('SGP context changes selection without changing historical joint probability',()=>{
+ const leg=(id,support)=>({id,playerId:id,team:'TOR',probability:.5,sample:3,key:'shots',threshold:1,context:{support},history:Array.from({length:3},(_,i)=>({gameDate:`${id}-${i}`,shots:1}))});
+ const pick=sameGameParlay([leg('a',-1),leg('b',1),leg('c',1)]);
+ assert.deepEqual(Array.from(pick.legs,l=>l.id),['b','c']);
+ assert.equal(pick.probability,.25);assert.equal(pick.odds,4);
+});
 test('eligibility excludes live, finished, past start, missing time and unknown states',()=>{
  const now=Date.parse('2026-10-05T20:00:00Z');
  for(const state of ['FUT','PRE'])assert.equal(gameNotStarted({gameState:state,startTimeUTC:'2026-10-05T21:00:00Z'},now),true);

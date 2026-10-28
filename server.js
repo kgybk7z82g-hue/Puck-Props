@@ -15,6 +15,7 @@ const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
 const STATIC = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+  ['/matchup.js', ['matchup.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/manifest.json', ['manifest.json', 'application/manifest+json']],
   ['/icon.svg', ['icon.svg', 'image/svg+xml']],
@@ -198,13 +199,13 @@ async function nhlStatsJson(url) {
   return response.json();
 }
 
-async function getTeamDefense(team, season) {
-  const key = `${team}:${season}`,cached = teamDefenseCache.get(key);
+async function getTeamDefense(team, season, before) {
+  const key = `${team}:${season}:${before||'now'}`,cached = teamDefenseCache.get(key);
   if (cached?.expires > Date.now()) return cached.value;
   if (cached?.promise) return cached.promise;
   const promise = (async () => {
     const schedule = await nhlJson(`/club-schedule-season/${team}/${season}`);
-    const games = (schedule.games || []).filter(game => game.gameType === 2 && ['OFF', 'FINAL'].includes(game.gameState));
+    const games = (schedule.games || []).filter(game => game.gameType === 2 && ['OFF', 'FINAL'].includes(game.gameState) && (!before || game.gameDate < before));
     const allowed = {
       Forwards: { shots: 0, points: 0, goals: 0 },
       Centers: { shots: 0, points: 0, goals: 0 },
@@ -422,7 +423,7 @@ const server = http.createServer(async (req, res) => {
   const defenseMatch = url.pathname.match(/^\/api\/team-defense\/([A-Z]{3})\/(\d{8})$/);
   if (defenseMatch) {
     try {
-      const data = await getTeamDefense(defenseMatch[1], defenseMatch[2]);
+      const data = await getTeamDefense(defenseMatch[1], defenseMatch[2], /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('before')||'') ? url.searchParams.get('before') : undefined);
       return send(res, 200, JSON.stringify(data), 'application/json; charset=utf-8');
     } catch (error) {
       return send(res, 502, JSON.stringify({ error: error.message || 'Could not load team defense stats.' }), 'application/json; charset=utf-8');
@@ -483,7 +484,7 @@ const server = http.createServer(async (req, res) => {
     const body = fs.readFileSync(path.join(ROOT, file[0]));
     res.writeHead(200, {
       'Content-Type': file[1],
-      'Cache-Control': ['index.html', 'app.js', 'sw.js'].includes(file[0]) ? 'no-cache' : 'public, max-age=300',
+      'Cache-Control': ['index.html', 'app.js', 'matchup.js', 'sw.js'].includes(file[0]) ? 'no-cache' : 'public, max-age=300',
       'X-Content-Type-Options': 'nosniff',
     });
     res.end(body);

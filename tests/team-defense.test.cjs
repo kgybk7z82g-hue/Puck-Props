@@ -4,6 +4,15 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 
+test('defense snapshots exclude slate-day and future results with separate cutoff caches',async()=>{
+ const source=fs.readFileSync('server.js','utf8');
+ const context=vm.createContext({Date,Map,teamDefenseCache:new Map(),nhlJson:async route=>route.includes('club-schedule')?{games:['2026-10-26','2026-10-27','2026-10-28'].map((gameDate,id)=>({id,gameDate,gameType:2,gameState:'OFF'}))}:{homeTeam:{abbrev:'TOR'},awayTeam:{abbrev:'BOS'},playerByGameStats:{awayTeam:{forwards:[],defense:[],goalies:[]}}}});
+ vm.runInContext(source.slice(source.indexOf('async function getTeamDefense('),source.indexOf('function clockSeconds(')),context);
+ assert.equal((await context.getTeamDefense('TOR','20262027','2026-10-27')).gamesProcessed,1);
+ assert.equal((await context.getTeamDefense('TOR','20262027','2026-10-28')).gamesProcessed,2);
+ assert.equal((await context.getTeamDefense('TOR','20262027')).gamesProcessed,3);
+});
+
 test('opponent position splits use each box score and preserve forward totals',async()=>{
  const source=fs.readFileSync('server.js','utf8');
  const player=(position,sog)=>({position,sog,goals:1,points:2});
