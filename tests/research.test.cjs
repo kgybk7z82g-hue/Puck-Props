@@ -86,3 +86,11 @@ test('SGP favors higher estimated hit chance among candidates inside the target'
  const pick=sameGameParlay([leg('a',.6,100),leg('b',.46,200),leg('c',.42,300)]);
  assert.equal(pick.legs.map(l=>l.playerId).sort().join(','),'a,b');
 });
+
+ test('player searches only offer explicitly active NHL players',()=>{
+ const search=vm.createContext({});
+ vm.runInContext(source.slice(source.indexOf('function playerName'),source.indexOf('function setupSearch')),search);
+ const players=[true,1,'true','1',false,0,'false','0',undefined,null].map((active,i)=>({playerId:i+1,name:'Player '+i,active}));
+ assert.deepEqual(Array.from(search.normalizePlayers(players),p=>p.id),['1','2','3','4']);
+ for(const key of ['players','results','suggestions'])assert.equal(search.normalizePlayers({[key]:players}).length,4);
+ });

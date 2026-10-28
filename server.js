@@ -167,6 +167,7 @@ function apiTarget(url) {
     const target = new URL('https://search.d3.nhle.com/api/v1/search/player');
     target.searchParams.set('culture', 'en-us');
     target.searchParams.set('limit', '12');
+    target.searchParams.set('active', 'true');
     target.searchParams.set('q', query);
     return target;
   }

@@ -65,7 +65,7 @@ $('loadScores').addEventListener('click',loadScores);$('scoreDate').addEventList
 $('loadScores').addEventListener('click',updateScoreboardLast10);$('scoreDate').addEventListener('change',updateScoreboardLast10);
 
 function playerName(p){return p.name||p.fullName||[p.firstName?.default||p.firstName,p.lastName?.default||p.lastName].filter(Boolean).join(' ')||'NHL Player'}
-function normalizePlayers(data){const items=Array.isArray(data)?data:(data?.players||data?.results||data?.suggestions||[]);return items.map(p=>({id:String(p.playerId??p.id??p.player_id??''),name:playerName(p),team:p.teamAbbrev||p.team?.abbrev||p.teamName||'',position:p.positionCode||p.position||'',headshot:p.headshot||p.image||''})).filter(p=>p.id&&p.name!=='NHL Player')}
+function normalizePlayers(data){const items=Array.isArray(data)?data:(data?.players||data?.results||data?.suggestions||[]);return items.filter(p=>[true,1,'true','1'].includes(p.active)).map(p=>({id:String(p.playerId??p.id??p.player_id??''),name:playerName(p),team:p.teamAbbrev||p.team?.abbrev||p.teamName||'',position:p.positionCode||p.position||'',headshot:p.headshot||p.image||''})).filter(p=>p.id&&p.name!=='NHL Player')}
 function setupSearch(inputId,resultId,slot){
  const input=$(inputId),out=$(resultId);let timer;
  input.addEventListener('input',()=>{
@@ -75,8 +75,8 @@ function setupSearch(inputId,resultId,slot){
   out.innerHTML='<div class="loading-inline" role="status">Searching players…</div>';
   timer=setTimeout(async()=>{
    try{
-    const url=searchApi.startsWith('/')?`${searchApi}?q=${encodeURIComponent(q)}`:searchApi+'?culture=en-us&limit=12&q='+encodeURIComponent(q),items=normalizePlayers(await get(url));
-    if(!items.length){out.innerHTML='<div class="description">No matching players found.</div>';return}
+    const url=searchApi.startsWith('/')?`${searchApi}?q=${encodeURIComponent(q)}`:searchApi+'?culture=en-us&limit=12&active=true&q='+encodeURIComponent(q),items=normalizePlayers(await get(url));
+    if(!items.length){out.innerHTML='<div class="description">No matching active NHL players found.</div>';return}
     out.innerHTML=items.map((p,i)=>`<button class="player-choice" type="button" data-result="${slot}-${i}">${p.headshot?`<img src="${esc(p.headshot)}" alt="" loading="lazy">`:''}<span><b>${esc(p.name)}</b><small>${esc([p.team,p.position].filter(Boolean).join(' · ')||'NHL player')}</small></span></button>`).join('');
     items.forEach((p,i)=>$(resultId).querySelector(`[data-result="${slot}-${i}"]`).addEventListener('click',()=>{selectPlayer(slot,p);if(slot==='stats')loadPlayerStats(p)}));
     const exact=slot==='stats'?items.find(p=>p.name.trim().toLocaleLowerCase()===q.toLocaleLowerCase()):null;

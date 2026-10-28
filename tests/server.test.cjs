@@ -13,7 +13,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
   if(p.includes('/player/999/'))throw Error('Simulated upstream failure');
   if(p.includes('/player/998/'))return new Response(JSON.stringify({error:'Unavailable'}),{status:503,headers:{'Content-Type':'application/json'}});
   if(p.includes('/club-schedule-season/'))return Response.json({games:[]});
-  if(p.includes('/search/player'))return Response.json([{playerId:8478402,name:'Test Player'}]);
+  if(p.includes('/search/player')){if(url.searchParams.get('active')!=='true')throw Error('Active player filter missing');return Response.json([{playerId:8478402,name:'Test Player',active:true}]);}
   return Response.json({games:[],standings:[],gameLog:[],forwards:[],playerByGameStats:{}});
  };require('./server.js');`;
  const child=spawn(process.execPath,['-e',mock],{cwd:path.resolve(__dirname,'..'),env:{...process.env,PORT:String(port),HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});
