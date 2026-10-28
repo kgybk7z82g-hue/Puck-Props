@@ -94,3 +94,11 @@ test('SGP favors higher estimated hit chance among candidates inside the target'
  assert.deepEqual(Array.from(search.normalizePlayers(players),p=>p.id),['1','2','3','4']);
  for(const key of ['players','results','suggestions'])assert.equal(search.normalizePlayers({[key]:players}).length,4);
  });
+
+test('research search excludes active prospects absent from the current roster',async()=>{
+ const search=vm.createContext({get:async()=>({forwards:[{id:1}],defensemen:[{id:2}],goalies:[{id:3}]})});
+ vm.runInContext(source.slice(source.indexOf('async function currentRosterPlayers'),source.indexOf('function setupSearch')),search);
+ const players=[1,2,3,4].map(id=>({id:String(id),team:'TOR'}));
+ players.push({id:'5',team:''});
+ assert.deepEqual(Array.from(await search.currentRosterPlayers(players),p=>p.id),['1','2','3']);
+});

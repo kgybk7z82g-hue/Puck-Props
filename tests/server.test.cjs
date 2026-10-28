@@ -12,8 +12,9 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
   if(p.includes('/starting-goalies/'))return new Response('<script id="__NEXT_DATA__">'+JSON.stringify({props:{pageProps:{data:[]}}})+'</script>');
   if(p.includes('/player/999/'))throw Error('Simulated upstream failure');
   if(p.includes('/player/998/'))return new Response(JSON.stringify({error:'Unavailable'}),{status:503,headers:{'Content-Type':'application/json'}});
+  if(p.includes('/roster/TOR/current'))return Response.json({forwards:[{id:8478402},{id:3}],defensemen:[],goalies:[]});
   if(p.includes('/club-schedule-season/'))return Response.json({games:[]});
-  if(p.includes('/search/player')){if(url.searchParams.get('active')!=='true')throw Error('Active player filter missing');return Response.json([{playerId:8478402,name:'Test Player',active:true}]);}
+  if(p.includes('/search/player')){if(url.searchParams.get('active')!=='true')throw Error('Active player filter missing');return Response.json([{playerId:8478402,name:'Test Player',teamAbbrev:'TOR',active:true},{playerId:2,name:'Prospect',teamAbbrev:'TOR',active:true},{playerId:3,name:'Retired',teamAbbrev:'TOR',active:false}]);}
   return Response.json({games:[],standings:[],gameLog:[],forwards:[],playerByGameStats:{}});
  };require('./server.js');`;
  const child=spawn(process.execPath,['-e',mock],{cwd:path.resolve(__dirname,'..'),env:{...process.env,PORT:String(port),HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});
@@ -24,6 +25,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
    const r=await fetch(base+route);assert.equal(r.status,200,route);assert.equal(r.headers.get('x-content-type-options'),'nosniff');
    if(route.startsWith('/api/'))assert.equal(typeof await r.json(),'object',route);
   }
+  const search=await(await fetch(base+'/api/player-search?q=Test')).json();assert.deepEqual(search.map(p=>p.playerId),[8478402]);
   const defense=await(await fetch(base+'/api/team-defense/TOR/20262027')).json();assert.equal(defense.gamesProcessed,0);assert.equal(defense.allowed.Forwards.shots,0);
   const travel=await(await fetch(base+'/api/travel?team=TOR')).json();assert.equal(travel.team,'TOR');assert.deepEqual(travel.flights,[]);assert.equal(travel.recoveryHours,null);
   assert.equal((await fetch(base+'/api/travel?team=BAD')).status,400);

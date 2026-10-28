@@ -456,7 +456,15 @@ const server = http.createServer(async (req, res) => {
         headers: { Accept: 'application/json', 'User-Agent': 'PuckProps/1.0' },
         signal: AbortSignal.timeout(9000),
       });
-      const body = await upstream.text();
+      let body = await upstream.text();
+      if (url.pathname === '/api/player-search' && upstream.ok) {
+        const candidates = JSON.parse(body).filter(p => [true, 1, 'true', '1'].includes(p.active) && /^[A-Z]{3}$/.test(p.teamAbbrev || ''));
+        const rosters = new Map(await Promise.all([...new Set(candidates.map(p => p.teamAbbrev))].map(async team => {
+          const roster = await nhlJson('/roster/' + team + '/current');
+          return [team, new Set(['forwards', 'defensemen', 'goalies'].flatMap(group => roster[group] || []).map(p => String(p.id)))];
+        })));
+        body = JSON.stringify(candidates.filter(p => rosters.get(p.teamAbbrev).has(String(p.playerId ?? p.id))));
+      }
       res.writeHead(upstream.status, {
         'Content-Type': upstream.headers.get('content-type') || 'application/json; charset=utf-8',
         'Cache-Control': 'no-store',
