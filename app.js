@@ -457,22 +457,23 @@ async function loadTopTen(refresh=false){
 let powerData=null,powerLoading=false;
 function buildPowerRankings(rows){
  const categories={};
+ rows=rows.map(t=>({...t,record:typeof t.points==='number'&&typeof t.wins==='number'&&typeof t.losses==='number'&&typeof t.otLosses==='number'?t.points/(2*t.gamesPlayed):null,defense:typeof t.goalsAgainst==='number'?t.goalsAgainst/t.gamesPlayed:null}));
  const valid=value=>typeof value==='number'&&Number.isFinite(value);
  const ranked=(list,key,ascending=false)=>{
   const sorted=list.slice().sort((a,b)=>(ascending?a[key]-b[key]:b[key]-a[key])||String(a.name).localeCompare(String(b.name)));
   let rank=0;return sorted.map((row,i)=>{if(i===0||row[key]!==sorted[i-1][key])rank=i+1;return {...row,rank}});
  };
- for(const key of ['pp','pk','goals']){
+ for(const key of ['pp','pk','goals','record','defense']){
   const eligible=rows.filter(t=>valid(t.gamesPlayed)&&t.gamesPlayed>0&&valid(t[key]));
-  categories[key]=key==='goals'?ranked(eligible.map(t=>({...t,goalsPerGame:t.goals/t.gamesPlayed})),'goalsPerGame'):ranked(eligible,key);
+  categories[key]=key==='goals'?ranked(eligible.map(t=>({...t,goalsPerGame:t.goals/t.gamesPlayed})),'goalsPerGame'):ranked(eligible,key,key==='defense');
  }
  const ranks=Object.fromEntries(Object.entries(categories).map(([key,list])=>[key,new Map(list.map(t=>[t.id,t.rank]))]));
- categories.combined=ranked(rows.filter(t=>['pp','pk','goals'].every(key=>ranks[key].has(t.id))).map(t=>({...t,ppRank:ranks.pp.get(t.id),pkRank:ranks.pk.get(t.id),goalsRank:ranks.goals.get(t.id),average:(ranks.pp.get(t.id)+ranks.pk.get(t.id)+ranks.goals.get(t.id))/3})),'average',true);
+ categories.combined=ranked(rows.filter(t=>['pp','pk','goals','record','defense'].every(key=>ranks[key].has(t.id))).map(t=>({...t,ppRank:ranks.pp.get(t.id),pkRank:ranks.pk.get(t.id),goalsRank:ranks.goals.get(t.id),recordRank:ranks.record.get(t.id),defenseRank:ranks.defense.get(t.id),average:(ranks.pp.get(t.id)+ranks.pk.get(t.id)+ranks.goals.get(t.id)+ranks.record.get(t.id)+ranks.defense.get(t.id))/5})),'average',true);
  return categories;
 }
 function renderPowerRankings(){
  const lists=buildPowerRankings(powerData.rows);
- $('powerColumns').innerHTML=[['combined','Power Rankings'],['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals per game']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'G/GP':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">PP #${t.ppRank} · PK #${t.pkRank} · G/GP #${t.goalsRank}</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goalsPerGame.toFixed(2):(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
+ $('powerColumns').innerHTML=[['combined','Power Rankings'],['pp','Power play (PP%)'],['pk','Penalty kill (PK%)'],['goals','Goals for per game'],['record','Team record (points %)'],['defense','Goals against per game']].map(([key,label])=>`<div><h4>${label}</h4><div class="tablewrap"><table><thead><tr><th>Rank</th><th>Team</th><th>${key==='combined'?'Avg. rank':key==='goals'?'GF/GP':key==='defense'?'GA/GP':'%'}</th></tr></thead><tbody>${lists[key].map(t=>`<tr><td>${t.rank}</td><td><b>${esc(t.name)}</b>${key==='combined'?`<div class="description">Record #${t.recordRank} · GF/GP #${t.goalsRank} · GA/GP #${t.defenseRank} · PP #${t.ppRank} · PK #${t.pkRank}</div><div class="description">${t.wins}–${t.losses}–${t.otLosses} · GF ${t.goals} · GA ${t.goalsAgainst}</div>`:key==='record'?`<div class="description">${t.wins}–${t.losses}–${t.otLosses} · ${t.points} pts</div>`:key==='goals'||key==='defense'?`<div class="description">${key==='goals'?t.goals:t.goalsAgainst} total · ${t.gamesPlayed} GP</div>`:''}</td><td>${key==='combined'?t.average.toFixed(2):key==='goals'?t.goalsPerGame.toFixed(2):key==='defense'?t.defense.toFixed(2):(t[key]*100).toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table>${lists[key].length?'':'<div class="empty">No statistics available yet.</div>'}</div></div>`).join('');
  return lists;
 }
 async function loadPowerRankings(){
