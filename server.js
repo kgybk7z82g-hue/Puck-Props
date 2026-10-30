@@ -20,6 +20,8 @@ const STATIC = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/manifest.json', ['manifest.json', 'application/manifest+json']],
   ['/icon.svg', ['icon.svg', 'image/svg+xml']],
+  ['/icon-raised-512.png', ['icon-raised-512.png', 'image/png']],
+  ['/icon-raised-192.png', ['icon-raised-192.png', 'image/png']],
   ['/sw.js', ['sw.js', 'text/javascript; charset=utf-8']],
 ]);
 const teamDefenseCache = new Map();
