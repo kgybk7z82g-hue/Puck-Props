@@ -56,7 +56,7 @@ function status(id,msg,type=''){const el=$(id);el.textContent=msg;const pending=
 async function fetchJson(url,timeout=4500){const response=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(timeout)});if(!response.ok){let detail='';try{const body=await response.json();detail=body.error||body.message||''}catch{}throw Error(detail||`Request failed (HTTP ${response.status})`)}return response.json()}
 async function get(path,timeout=proxyServer?10000:3500){const url=path.startsWith('http')?path:proxyServer&&path.startsWith('/api/')?path:api+path;if(cache.has(url))return cache.get(url);const request=(async()=>{try{return await fetchJson(url,timeout)}catch(localError){if(proxyServer){const directNhl=url.startsWith('/api/nhl/v1/')?'https://api-web.nhle.com/v1'+url.slice('/api/nhl/v1'.length):'';if(!directNhl)throw localError;try{return await fetchJson(directNhl,3500)}catch{}const relays=['https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(directNhl),'https://api.allorigins.win/raw?url='+encodeURIComponent(directNhl)];try{return await Promise.any(relays.map(relay=>fetchJson(relay,4500)))}catch{if(localError.name==='TimeoutError')throw Error('The local NHL server and direct data feed both timed out.');if(localError instanceof TypeError)throw Error('Cannot reach the local Puck Props server or NHL data feed. Check that the server is running and your internet connection is available.');throw Error('Could not load NHL data from the local server or its fallback feeds.')}}const relays=['https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),'https://api.allorigins.win/raw?url='+encodeURIComponent(url)];try{return await Promise.any(relays.map(relay=>fetchJson(relay,4500)))}catch{throw Error('The NHL data service could not be reached. For reliable local access, launch the app with start.bat or run node server.js.')}}})();cache.set(url,request);try{return await request}catch(e){cache.delete(url);throw e}}
 function busy(btn,on,label){if(on){if(!btn.disabled)btn.dataset.label=btn.textContent;btn.textContent=label;btn.disabled=true}else{btn.textContent=btn.dataset.label||btn.textContent;btn.disabled=false}}
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab!=='teams'&&$('player').classList.contains('team-player-detail'))restoreTeamPlayerSections();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['scores','picks','bets','travel','sameDay','topTen','firstGoals','history','teams','powerRankings','player'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.tab));if(b.dataset.tab==='teams'){renderTeamDirectory();if(!teamRows.length)loadTeams();else drawTeams()}}));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab!=='teams'&&$('player').classList.contains('team-player-detail'))restoreTeamPlayerSections();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['scores','picks','bets','travel','sameDay','topTen','firstGoals','goalLeaders','history','teams','powerRankings','player'].forEach(id=>$(id).classList.toggle('hidden',!(id===b.dataset.tab||(id==='player'&&b.dataset.tab==='history'))));if(b.dataset.tab==='teams'){renderTeamDirectory();if(!teamRows.length)loadTeams();else drawTeams()}}));
 
 const winProjectionGames=new Map();let activeMatchupId='';
 async function loadWinProjections(date){try{const data=await fetchJson(`/api/win-projections/${encodeURIComponent(date)}`,22000);winProjectionGames.clear();for(const [id,p]of Object.entries(data.games||{}))winProjectionGames.set(id,p);return data}catch{winProjectionGames.clear();return null}}
@@ -122,7 +122,7 @@ function setupSearch(inputId,resultId,slot){
  });
  input.addEventListener('keydown',e=>{if(e.key==='Enter'){const first=out.querySelector('.player-choice');if(first){e.preventDefault();first.click()}}})
 }
-function selectPlayer(slot,p){playerSelections[slot]=p;$(slot==='stats'?'statsPlayerSearch':'historyPlayerSearch').value=p.name;$(`${slot}Selected`).textContent=`Selected: ${p.name}${p.team?' · '+p.team:''}${p.position?' · '+p.position:''}`;$(slot==='stats'?'statsPlayerResults':'historyPlayerResults').innerHTML=''}
+function selectPlayer(slot,p,sync=true){if(sync){selectPlayer(slot==='stats'?'history':'stats',p,false);if(slot==='history')loadPlayerStats(p)}playerSelections[slot]=p;$(slot==='stats'?'statsPlayerSearch':'historyPlayerSearch').value=p.name;$(`${slot}Selected`).textContent=`Selected: ${p.name}${p.team?' · '+p.team:''}${p.position?' · '+p.position:''}`;$(slot==='stats'?'statsPlayerResults':'historyPlayerResults').innerHTML=''}
 setupSearch('statsPlayerSearch','statsPlayerResults','stats');setupSearch('historyPlayerSearch','historyPlayerResults','history');
 
 function metricRows(c){return [['Games played',c.gamesPlayed],['Goals',c.goals],['Assists',c.assists],['Points',c.points],['Shots',c.shots],['Plus / minus',c.plusMinus],['Power-play goals',c.powerPlayGoals],['Penalty minutes',c.pim],['Wins',c.wins],['Save percentage',c.savePctg!=null?Number(c.savePctg).toFixed(3):undefined],['Goals-against average',c.goalsAgainstAvg!=null?Number(c.goalsAgainstAvg).toFixed(2):undefined],['Shutouts',c.shutouts],['Saves',c.saves]].filter(x=>x[1]!==undefined&&x[1]!==null)}
@@ -211,7 +211,7 @@ function openTeamPlayer(p){
  $('teamRosterPage').classList.add('hidden');$('teamPlayerPage').classList.remove('hidden');$('teamPlayerTitle').textContent=p.name;$('teamPlayerMeta').textContent=`${teams.find(t=>t[0]===p.team)?.[1]||p.team} · ${p.position==='G'?'Goalie':p.position==='D'?'Defense':'Forward'}${p.sweaterNumber?` · #${p.sweaterNumber}`:''}`;
  $('teamPlayerHero').innerHTML=p.headshot?`<img class="team-player-avatar" src="${esc(p.headshot)}" alt="">`:'';
  $('playerSectionHost').append($('player'));$('historySectionHost').append($('history'));$('player').classList.remove('hidden');$('history').classList.remove('hidden');$('player').classList.add('team-player-detail');$('history').classList.add('team-player-detail');
- selectPlayer('stats',p);selectPlayer('history',p);$('opponent').value=teams.find(t=>t[0]!==p.team)?.[0]||'';loadPlayerStats(p);loadPlayerLast10(p);status('historyStatus','Choose an opponent and load this player’s matchup history.');$('backToRoster').focus();
+ selectPlayer('stats',p,false);selectPlayer('history',p,false);$('opponent').value=teams.find(t=>t[0]!==p.team)?.[0]||'';loadPlayerStats(p);loadPlayerLast10(p);status('historyStatus','Choose an opponent and load this player’s matchup history.');$('backToRoster').focus();
 }
 $('backToRoster').addEventListener('click',restoreTeamPlayerSections);
 function compactName(name){const parts=String(name||'').trim().split(/\s+/).filter(Boolean);return parts.length>1?`${parts[0][0]}. ${parts[parts.length-1]}`:name||'Player'}
@@ -543,3 +543,20 @@ $('loadTravelPlayer').addEventListener('click',async()=>{
  }catch(error){if(team===$('travelTeam').value&&player===$('travelPlayer').value){$('travelPlayerSplits').innerHTML='';status('travelPlayerStatus',error.message,'error');}}
  finally{busy(button,false);}
 });
+
+let goalLeadersRequest=0;
+function renderGoalLeaders(data){
+ return [['overtime','Overtime goals'],['emptyNet','Empty-net goals']].map(([key,title])=>'<div><h4>'+title+'</h4><div class="tablewrap">'+(data[key].length?'<table><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>Goals</th></tr></thead><tbody>'+data[key].map(p=>'<tr><td>'+p.rank+'</td><td><b>'+esc(p.name)+'</b></td><td>'+esc(p.team)+'</td><td><b>'+p.goals+'</b></td></tr>').join('')+'</tbody></table>':'<div class="empty">No '+title.toLowerCase()+' scorers are available for this season yet.</div>')+'</div></div>').join('');
+}
+async function loadGoalLeaders(){
+ const request=++goalLeadersRequest,season=$('goalLeadersSeason').value,button=$('refreshGoalLeaders');
+ busy(button,true,'Loading…');$('goalLeadersOut').innerHTML='';status('goalLeadersStatus','Loading NHL overtime and empty-net goal leaders…');
+ try{const data=await fetchJson('/api/goal-leaders/'+season,20000);if(request!==goalLeadersRequest)return;
+  $('goalLeadersOut').innerHTML=renderGoalLeaders(data);status('goalLeadersStatus',season.slice(0,4)+'–'+season.slice(4)+' regular season · Updated '+new Date(data.updatedAt).toLocaleString(),'success');
+ }catch(e){if(request===goalLeadersRequest)status('goalLeadersStatus',e.message,'error')}
+ finally{if(request===goalLeadersRequest)busy(button,false)}
+}
+$('goalLeadersSeason').innerHTML=$('firstGoalsSeason').innerHTML;
+$('goalLeadersSeason').addEventListener('change',loadGoalLeaders);
+$('refreshGoalLeaders').addEventListener('click',loadGoalLeaders);
+document.querySelector('[data-tab="goalLeaders"]').addEventListener('click',loadGoalLeaders);

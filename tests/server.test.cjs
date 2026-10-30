@@ -8,6 +8,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
  const port=4184;
  const mock=`global.fetch=async input=>{
   const url=new URL(input),p=url.pathname;
+  if(p==='/stats/rest/en/skater/realtime')return Response.json({data:[{playerId:1,skaterFullName:'Test Player',teamAbbrevs:'TOR',otGoals:2,emptyNetGoals:4}],total:1});
   if(p==='/stats/rest/en/team/summary')return Response.json({data:[{teamId:10,teamFullName:'Toronto Maple Leafs',gamesPlayed:10,wins:6,losses:3,otLosses:1,points:13,goalsFor:35,goalsAgainst:25,powerPlayPct:.25,penaltyKillPct:.8}]});
   if(url.hostname==='nhlflights.ca')return Response.json(p.endsWith('/teams')?{teams:[{tri:'TOR',name:'Toronto Maple Leafs'}]}:{flights:[]});
   if(p.includes('/starting-goalies/'))return new Response('<script id="__NEXT_DATA__">'+JSON.stringify({props:{pageProps:{data:[]}}})+'</script>');
@@ -26,6 +27,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
    const r=await fetch(base+route);assert.equal(r.status,200,route);assert.equal(r.headers.get('x-content-type-options'),'nosniff');
    if(route.startsWith('/api/'))assert.equal(typeof await r.json(),'object',route);
   }
+  const leaders=await(await fetch(base+'/api/goal-leaders/20252026')).json();assert.equal(leaders.overtime[0].goals,2);assert.equal(leaders.emptyNet[0].goals,4);assert.equal((await fetch(base+'/api/goal-leaders/bad')).status,404);
   const power=await(await fetch(base+'/api/power-rankings/20252026')).json();assert.deepEqual(power.rows,[{id:10,name:'Toronto Maple Leafs',gamesPlayed:10,pp:.25,pk:.8,goals:35,goalsAgainst:25,wins:6,losses:3,otLosses:1,points:13}]);
   const search=await(await fetch(base+'/api/player-search?q=Test')).json();assert.deepEqual(search.map(p=>p.playerId),[8478402]);
   const defense=await(await fetch(base+'/api/team-defense/TOR/20262027')).json();assert.equal(defense.gamesProcessed,0);assert.equal(defense.allowed.Forwards.shots,0);

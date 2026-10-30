@@ -10,6 +10,8 @@ const { createTopTenService } = require('./topten');
 const { createFirstGoalsService } = require('./firstgoals');
 const { createTravelService } = require('./travel');
 const { createInjuryService } = require('./injuries');
+const { createGoalLeadersService } = require('./goal-leaders');
+const getGoalLeaders = createGoalLeadersService({get:nhlStatsJson});
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -393,6 +395,11 @@ const server = http.createServer(async (req, res) => {
     catch(error){return send(res,502,JSON.stringify({error:error.message}),'application/json; charset=utf-8');}
   }
 
+  const goalLeadersMatch = url.pathname.match(/^\/api\/goal-leaders\/(\d{8})$/);
+  if (goalLeadersMatch) {
+    try { return send(res,200,JSON.stringify(await getGoalLeaders(goalLeadersMatch[1])),'application/json; charset=utf-8'); }
+    catch(error) { return send(res,502,JSON.stringify({error:error.message}),'application/json; charset=utf-8'); }
+  }
   const firstGoalsMatch = url.pathname.match(/^\/api\/first-goals\/(\d{8})$/);
   if (firstGoalsMatch) {
     try { return send(res,200,JSON.stringify(await getFirstGoals(firstGoalsMatch[1])),'application/json; charset=utf-8'); }
