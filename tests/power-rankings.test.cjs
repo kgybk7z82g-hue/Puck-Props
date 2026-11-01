@@ -47,6 +47,14 @@ test('power rankings render all categories, records and goal totals',()=>{
  const elements={powerColumns:{innerHTML:''}};context.$=id=>elements[id];context.esc=String;context.powerData={rows:[{id:1,name:'A',gamesPlayed:10,wins:6,losses:3,otLosses:1,points:13,goals:35,goalsAgainst:25,pp:.25,pk:.8}]};
  vm.runInContext(source.slice(source.indexOf('function renderPowerRankings'),source.indexOf('async function loadPowerRankings')),context);
  context.renderPowerRankings();const html=elements.powerColumns.innerHTML;
- assert.equal((html.match(/<table>/g)||[]).length,6);assert.match(html,/6–3–1/);assert.match(html,/GF 35 · GA 25/);assert.match(html,/65.0%/);assert.match(html,/2.50/);assert.match(html,/3.50/);
- context.powerData={rows:[]};context.renderPowerRankings();assert.equal((elements.powerColumns.innerHTML.match(/No statistics available yet/g)||[]).length,6);
+ assert.equal((html.match(/<table>/g)||[]).length,7);assert.match(html,/6–3–1/);assert.match(html,/GF 35 · GA 25/);assert.match(html,/65.0%/);assert.match(html,/2.50/);assert.match(html,/3.50/);
+ context.powerData={rows:[]};context.renderPowerRankings();assert.equal((elements.powerColumns.innerHTML.match(/No statistics available yet/g)||[]).length,7);
+});
+
+test('penalty rankings sort total minutes descending without changing combined rankings',()=>{
+ const rows=[{id:1,name:'A',gamesPlayed:10,pp:.2,pk:.8,goals:30,penaltyMinutes:20},{id:2,name:'B',gamesPlayed:5,pp:.2,pk:.8,goals:15,penaltyMinutes:40},{id:3,name:'C',gamesPlayed:5,pp:.2,pk:.8,goals:15,penaltyMinutes:40},{id:4,name:'D',gamesPlayed:5,pp:.2,pk:.8,goals:15,penaltyMinutes:0}];
+ const r=build(rows);
+ assert.deepEqual(Array.from(r.penalties,t=>[t.id,t.rank]),[[2,1],[3,1],[1,3],[4,4]]);
+ assert.deepEqual(Array.from(r.combined,t=>[t.id,t.rank,t.average]),Array.from(build(rows.map(t=>({...t,penaltyMinutes:null}))).combined,t=>[t.id,t.rank,t.average]));
+ assert.equal(build([{id:1,gamesPlayed:1,penaltyMinutes:null},{id:2,gamesPlayed:0,penaltyMinutes:10},{id:3,gamesPlayed:1,penaltyMinutes:-1}]).penalties.length,0);
 });

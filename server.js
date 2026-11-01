@@ -11,6 +11,8 @@ const { createFirstGoalsService } = require('./firstgoals');
 const { createTravelService } = require('./travel');
 const { createDisruptionService } = require('./disruptions');
 const { createInjuryService } = require('./injuries');
+const { createUnderlyingStrengthService } = require('./underlying-strength');
+const getUnderlyingStrength = createUnderlyingStrengthService();
 const { createGoalLeadersService } = require('./goal-leaders');
 const getGoalLeaders = createGoalLeadersService({get:nhlStatsJson});
 const ROOT = __dirname;
@@ -35,10 +37,13 @@ const powerRankingsCache = new Map();
 async function getPowerRankingStats(season) {
   const cached = powerRankingsCache.get(season);
   if (cached?.expires > Date.now()) return cached.value;
-  const data = await nhlStatsJson(`https://api.nhle.com/stats/rest/en/team/summary?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=seasonId=${season}%20and%20gameTypeId=2`);
+  const query=`?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=seasonId=${season}%20and%20gameTypeId=2`;
+  const [summary,penalties]=await Promise.allSettled(['summary','penalties'].map(report=>nhlStatsJson(`https://api.nhle.com/stats/rest/en/team/${report}${query}`)));
+  if(summary.status!=='fulfilled')throw Error('Team statistics were not returned.');
+  const data=summary.value,penaltyRows=penalties.status==='fulfilled'&&Array.isArray(penalties.value.data)?new Map(penalties.value.data.map(t=>[t.teamId,t])):new Map();
   if (!Array.isArray(data.data)) throw new Error('Team statistics were not returned.');
   const finite = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
-  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),goalsAgainst:finite(t.goalsAgainst),wins:finite(t.wins),losses:finite(t.losses),otLosses:finite(t.otLosses),points:finite(t.points)}));
+  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),goalsAgainst:finite(t.goalsAgainst),wins:finite(t.wins),losses:finite(t.losses),otLosses:finite(t.otLosses),points:finite(t.points),penaltyMinutes:finite(penaltyRows.get(t.teamId)?.penaltyMinutes)}));
   const result = {season,rows,updatedAt:new Date().toISOString()};
   powerRankingsCache.set(season,{value:result,expires:Date.now()+5*60000});
   return result;
@@ -412,6 +417,14 @@ const server = http.createServer(async (req, res) => {
   if (firstGoalsMatch) {
     try { return send(res,200,JSON.stringify(await getFirstGoals(firstGoalsMatch[1])),'application/json; charset=utf-8'); }
     catch(error) { return send(res,502,JSON.stringify({error:error.message}),'application/json; charset=utf-8'); }
+  }
+  const strengthMatch = url.pathname.match(/^\/api\/underlying-strength\/([^/]+)(?:\/([^/]+))?$/);
+  if (strengthMatch) {
+    const [,season,team='']=strengthMatch;
+    if(!/^\d{8}$/.test(season)||Number(season.slice(4))!==Number(season.slice(0,4))+1||Number(season.slice(0,4))<2008||Number(season.slice(0,4))>new Date().getUTCFullYear())return send(res,400,JSON.stringify({error:'Invalid season.'}),'application/json; charset=utf-8');
+    if(team&&!/^(ANA|ARI|BOS|BUF|CAR|CBJ|CGY|CHI|COL|DAL|DET|EDM|FLA|LAK|MIN|MTL|NJD|NSH|NYI|NYR|OTT|PHI|PIT|SEA|SJS|STL|TBL|TOR|UTA|VAN|VGK|WPG|WSH)$/.test(team))return send(res,400,JSON.stringify({error:'Unknown NHL team.'}),'application/json; charset=utf-8');
+    try{return send(res,200,JSON.stringify(await getUnderlyingStrength(season,team)),'application/json; charset=utf-8');}
+    catch(error){return send(res,502,JSON.stringify({error:error.message||'Underlying strength data unavailable. Please retry.'}),'application/json; charset=utf-8');}
   }
   const powerMatch = url.pathname.match(/^\/api\/power-rankings\/(\d{8})$/);
   if (powerMatch) {
