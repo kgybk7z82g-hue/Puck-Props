@@ -1,4 +1,4 @@
-const CACHE='puck-props-v65';
+const CACHE='puck-props-v66';
 const SHELL=['./','./index.html','./app.js?v=65','./matchup.js?v=65','./manifest.json','./icon-raised-512.png','./icon-raised-192.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
