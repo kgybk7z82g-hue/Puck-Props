@@ -508,6 +508,26 @@ $('firstGoalsSeason').addEventListener('change',loadFirstGoals);
 $('refreshFirstGoals').addEventListener('click',loadFirstGoals);
 document.querySelector('[data-tab="firstGoals"]').addEventListener('click',loadFirstGoals);
 
+let disruptionRequest=0,disruptionTimer;
+// Keep this watch independent of the flight source: news remains usable if flights fail.
+$('disruptionTeam').innerHTML='<option value="">Entire NHL</option>'+teams.map(([code,name])=>`<option value="${esc(code)}">${esc(name)}</option>`).join('');
+async function loadDisruptions(){
+ const request=++disruptionRequest,team=$('disruptionTeam').value,button=$('refreshDisruptions');
+ busy(button,true,'Searching reports…');status('disruptionStatus','Checking news and indexed reports…');
+ $('disruptionReports').innerHTML='';$('disruptionLinks').innerHTML='';$('disruptionCoverage').textContent='';$('disruptionGames').textContent='';
+ try{
+  const data=await fetchJson('/api/disruptions?team='+encodeURIComponent(team),45000);if(request!==disruptionRequest)return;
+  $('disruptionCoverage').textContent=data.coverage.map(s=>s.name+': '+s.status+' ('+s.results+' search results)').join(' · ');
+  $('disruptionGames').textContent='Upcoming games within 48 hours: '+(data.upcomingGames.map(g=>g.awayTeam.abbrev+' at '+g.homeTeam.abbrev+' · '+travelTime(g.startTimeUTC)).join(' / ')||'None returned')+(data.warnings[0]==='Upcoming schedule unavailable'?' · Schedule unavailable':'');
+  $('disruptionReports').innerHTML=data.reports.length?data.reports.map(r=>`<article class="pick-card"><h4>${esc(r.title)}</h4><p>${esc(r.verification)} · ${esc(r.tags.join(' / '))}</p><p>Teams mentioned: ${esc(r.teams.join(', ')||'Not identified')}<br>Published ${esc(travelTime(r.publishedAt))}</p>${r.snippet?`<p>${esc(r.snippet)}</p>`:''}<p>${esc(r.gameMatch)}</p>${r.candidateGames?.length?`<p>Upcoming games for teams mentioned: ${r.candidateGames.map(g=>esc(g.away+' at '+g.home+' · '+travelTime(g.startTimeUTC))).join(' / ')}</p>`:''}${r.sources.map(s=>`<p><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.publisher)} · Read source</a><br>${esc(s.searchProvider)}</p>`).join('')}</article>`).join(''):'<div class="empty">'+(data.unavailable?'Search sources are unavailable. Use the searches below to investigate.':'No matching recent headlines found. This does not establish that teams traveled without delays. Use the searches below to check writers and social posts.')+'</div>';
+  $('disruptionLinks').innerHTML=data.searchLinks.map(s=>`<a class="btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.label)}</a>`).join('');
+  status('disruptionStatus','Checked '+travelTime(data.checkedAt)+' · Past '+data.lookbackHours+' hours · '+data.reports.length+' leads'+(data.partial?' · Coverage incomplete; some searches unavailable.':''),data.unavailable?'error':data.partial?'':'success');
+ }catch(error){if(request===disruptionRequest)status('disruptionStatus',error.message,'error');}
+ finally{if(request===disruptionRequest)busy(button,false);}
+}
+$('refreshDisruptions').addEventListener('click',loadDisruptions);
+$('disruptionTeam').addEventListener('change',loadDisruptions);
+document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{clearInterval(disruptionTimer);if(button.dataset.tab==='travel'){loadDisruptions();disruptionTimer=setInterval(()=>{if(!document.hidden)loadDisruptions();},300000);}}));
 let travelRequest=0,travelDirectoryReady=false,travelTimer;
 const travelTime=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString():'Unknown';
 function flightTime(value,timeZone){

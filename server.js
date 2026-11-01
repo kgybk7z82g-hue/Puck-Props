@@ -9,6 +9,7 @@ const { parseGoaliePost, mergeGoalies } = require('./goaliepost');
 const { createTopTenService } = require('./topten');
 const { createFirstGoalsService } = require('./firstgoals');
 const { createTravelService } = require('./travel');
+const { createDisruptionService } = require('./disruptions');
 const { createInjuryService } = require('./injuries');
 const { createGoalLeadersService } = require('./goal-leaders');
 const getGoalLeaders = createGoalLeadersService({get:nhlStatsJson});
@@ -87,6 +88,7 @@ const startingGoalieCache = new Map();
 const teamCodeByName = new Map([['anaheim ducks','ANA'],['boston bruins','BOS'],['buffalo sabres','BUF'],['calgary flames','CGY'],['carolina hurricanes','CAR'],['chicago blackhawks','CHI'],['colorado avalanche','COL'],['columbus blue jackets','CBJ'],['dallas stars','DAL'],['detroit red wings','DET'],['edmonton oilers','EDM'],['florida panthers','FLA'],['los angeles kings','LAK'],['minnesota wild','MIN'],['montreal canadiens','MTL'],['nashville predators','NSH'],['new jersey devils','NJD'],['new york islanders','NYI'],['new york rangers','NYR'],['ottawa senators','OTT'],['philadelphia flyers','PHI'],['pittsburgh penguins','PIT'],['san jose sharks','SJS'],['seattle kraken','SEA'],['st. louis blues','STL'],['utah mammoth','UTA'],['tampa bay lightning','TBL'],['toronto maple leafs','TOR'],['vancouver canucks','VAN'],['vegas golden knights','VGK'],['washington capitals','WSH'],['winnipeg jets','WPG']]);
 
 const getInjuries = createInjuryService({teamCodes:teamCodeByName});
+const getDisruptions = createDisruptionService({teams:teamCodeByName,getNhl:nhlJson});
 async function topTenJson(endpoint){
  for(let attempt=0;attempt<3;attempt++){
   await new Promise(resolve=>setTimeout(resolve,attempt?1000*attempt:250));
@@ -385,6 +387,12 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/injuries') {
     try { return send(res,200,JSON.stringify(await getInjuries()),'application/json; charset=utf-8'); }
     catch { return send(res,502,JSON.stringify({error:'Injury reports are unavailable. Please retry shortly.'}),'application/json; charset=utf-8'); }
+  }
+  if (url.pathname === '/api/disruptions') {
+    const team=url.searchParams.get('team')||'';
+    if(team&&![...teamCodeByName.values()].includes(team))return send(res,400,JSON.stringify({error:'Unknown NHL team.'}),'application/json; charset=utf-8');
+    try{return send(res,200,JSON.stringify(await getDisruptions(team)),'application/json; charset=utf-8');}
+    catch{return send(res,502,JSON.stringify({error:'Disruption watch unavailable. Please retry.'}),'application/json; charset=utf-8');}
   }
   if (url.pathname === '/api/travel') {
     const team=url.searchParams.get('team')||'';
