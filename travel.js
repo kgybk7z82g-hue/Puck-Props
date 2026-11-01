@@ -42,7 +42,7 @@ function analyzeTravel(team, flights, games, now = Date.now()) {
   if(context.zoneHours>=2 && recent.includes(latest)){score+=10;reasons.push('Recent flight crosses 2+ time zones +10');}
   if(context.lateArrival && recoveryHours!=null && recoveryHours<24){score+=10;reasons.push('Arrival before 6 a.m. destination time +10');}
   if(roadGames>=3){score+=5;reasons.push('At least 3 consecutive road games +5');}
-  return {latest,next,recoveryHours,restHours,distanceKm,gamesSevenDays,backToBack,roadGames,...context,score:next&&past.length?Math.min(100,score):null,reasons,flights:tracked.slice(0,20)};
+  return {latest,next,recoveryHours,restHours,distanceKm,gamesSevenDays,backToBack,roadGames,...context,score:next&&past.length?Math.min(100,score):null,reasons,flights:tracked.slice(0,20).map(f=>({...f,originTimeZone:airportZones[f.origin]||null,destinationTimeZone:airportZones[f.destination]||null}))};
 }
 
 function createTravelService({getNhl,fetchJson,teams}) {

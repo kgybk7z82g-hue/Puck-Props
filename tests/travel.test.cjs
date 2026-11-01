@@ -36,3 +36,21 @@ test('player splits join team games, preserve zero statistics and exclude unknow
  const rows=Object.fromEntries(result.splits.map(r=>[r.key,r]));
  assert.equal(rows.season.games,2);assert.equal(rows.season.shots,2);assert.equal(rows.backToBack.games,1);assert.equal(rows.afterFlight.games,1);assert.equal(rows.overnight.games,1);assert.equal(rows.zones.games,1);assert.equal(rows.rested.shots,null);
 });
+
+test('flight rows expose separate airport zones and preserve unknown airports',()=>{
+ const rows=analyzeTravel('TOR',[{...flight,origin:'KLAX',destination:'CYYZ'}, {...flight,id:2,origin:'XXXX',destination:'YYYY'}],games,now).flights;
+ assert.equal(rows[0].originTimeZone,'America/Los_Angeles');
+ assert.equal(rows[0].destinationTimeZone,'America/Toronto');
+ assert.equal(rows[1].originTimeZone,null);assert.equal(rows[1].destinationTimeZone,null);
+});
+test('flight display uses airport dates, daylight saving and explicit UTC fallback',()=>{
+ const vm=require('node:vm'),source=require('node:fs').readFileSync(require.resolve('../app.js'),'utf8');
+ const context=vm.createContext({});
+ vm.runInContext(source.slice(source.indexOf('function flightTime('),source.indexOf('async function loadTravel(')),context);
+ const format=context.flightTime;
+ assert.match(format('2026-10-26T04:00:00Z','America/Los_Angeles'),/Oct 25, 2026.*9:00.*p\.?m\.?.*PDT/i);
+ assert.match(format('2026-10-26T04:00:00Z','America/Toronto'),/Oct 26, 2026.*12:00.*a\.?m\.?.*EDT/i);
+ assert.match(format('2026-12-01T04:00:00Z','America/Los_Angeles'),/Nov 30, 2026.*8:00.*p\.?m\.?.*PST/i);
+ assert.match(format('2026-10-26T04:00:00Z',null),/4:00.*a\.?m\.?.*UTC.*airport time zone unknown/i);
+ assert.equal(format(null,'America/Toronto'),'Unknown');assert.equal(format('invalid',null),'Unknown');
+});
