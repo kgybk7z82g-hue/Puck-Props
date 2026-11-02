@@ -38,9 +38,9 @@ test('shot averages rank separately and do not change the combined ranking',()=>
  assert.deepEqual(Array.from(r.shotsFor,t=>t.id),[2,1]);assert.deepEqual(Array.from(r.shotsAgainst,t=>t.id),[2,1]);
  assert.deepEqual(Array.from(r.combined,t=>[t.id,t.average]),Array.from(withoutShots.combined,t=>[t.id,t.average]));
 });
-test('penalty totals rank most to least and stay outside the combined ranking',()=>{
- const rows=[{id:1,name:'A',gamesPlayed:10,pp:.2,pk:.8,goals:30,penaltyMinutes:20},{id:2,name:'B',gamesPlayed:10,pp:.2,pk:.8,goals:30,penaltyMinutes:50}];
+test('penalty minutes per game rank highest to lowest and stay outside the combined ranking',()=>{
+ const rows=[{id:1,name:'A',gamesPlayed:10,pp:.2,pk:.8,goals:30,penaltyMinutes:50},{id:2,name:'B',gamesPlayed:20,pp:.2,pk:.8,goals:60,penaltyMinutes:80}];
  const r=context.buildPowerRankings(rows),withoutPenalties=context.buildPowerRankings(rows.map(({penaltyMinutes,...t})=>t));
- assert.deepEqual(Array.from(r.penalties,t=>t.id),[2,1]);
+ assert.deepEqual(Array.from(r.penalties,t=>[t.id,t.penaltyMinutesPerGame]),[[1,5],[2,4]]);
  assert.deepEqual(Array.from(r.combined,t=>[t.id,t.average]),Array.from(withoutPenalties.combined,t=>[t.id,t.average]));
 });
