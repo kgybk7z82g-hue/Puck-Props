@@ -43,7 +43,7 @@ async function getPowerRankingStats(season) {
   const data=summary.value,penaltyRows=penalties.status==='fulfilled'&&Array.isArray(penalties.value.data)?new Map(penalties.value.data.map(t=>[t.teamId,t])):new Map();
   if (!Array.isArray(data.data)) throw new Error('Team statistics were not returned.');
   const finite = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
-  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),goalsAgainst:finite(t.goalsAgainst),wins:finite(t.wins),losses:finite(t.losses),otLosses:finite(t.otLosses),points:finite(t.points),penaltyMinutes:finite(penaltyRows.get(t.teamId)?.penaltyMinutes)}));
+  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),goalsAgainst:finite(t.goalsAgainst),shotsForPerGame:finite(t.shotsForPerGame),shotsAgainstPerGame:finite(t.shotsAgainstPerGame),wins:finite(t.wins),losses:finite(t.losses),otLosses:finite(t.otLosses),points:finite(t.points),penaltyMinutes:finite(penaltyRows.get(t.teamId)?.penaltyMinutes)}));
   const result = {season,rows,updatedAt:new Date().toISOString()};
   powerRankingsCache.set(season,{value:result,expires:Date.now()+5*60000});
   return result;

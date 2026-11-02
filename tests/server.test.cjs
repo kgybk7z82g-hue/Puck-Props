@@ -10,7 +10,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
   const url=new URL(input),p=url.pathname;
   if(p==='/stats/rest/en/skater/realtime')return Response.json({data:[{playerId:1,skaterFullName:'Test Player',teamAbbrevs:'TOR',otGoals:2,emptyNetGoals:4}],total:1});
   if(p==='/stats/rest/en/team/penalties')return Response.json({data:[{teamId:10,penaltyMinutes:120}]});
-  if(p==='/stats/rest/en/team/summary')return Response.json({data:[{teamId:10,teamFullName:'Toronto Maple Leafs',gamesPlayed:10,wins:6,losses:3,otLosses:1,points:13,goalsFor:35,goalsAgainst:25,powerPlayPct:.25,penaltyKillPct:.8}]});
+  if(p==='/stats/rest/en/team/summary')return Response.json({data:[{teamId:10,teamFullName:'Toronto Maple Leafs',gamesPlayed:10,wins:6,losses:3,otLosses:1,points:13,goalsFor:35,goalsAgainst:25,shotsForPerGame:30,shotsAgainstPerGame:28,powerPlayPct:.25,penaltyKillPct:.8}]});
   if(p.includes('/playerData/'))return new Response('team,season,situation,games_played,gameId,gameDate,iceTime,xGoalsFor,xGoalsAgainst,goalsFor,goalsAgainst,highDangerShotsFor,highDangerShotsAgainst\\nTOR,2026,5on5,1,2026020001,20261001,2800,2,1,3,1,4,2');
   if(url.hostname==='nhlflights.ca')return Response.json(p.endsWith('/teams')?{teams:[{tri:'TOR',name:'Toronto Maple Leafs'}]}:{flights:[]});
   if(p.includes('/starting-goalies/'))return new Response('<script id="__NEXT_DATA__">'+JSON.stringify({props:{pageProps:{data:[]}}})+'</script>');
@@ -30,7 +30,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
    if(route.startsWith('/api/'))assert.equal(typeof await r.json(),'object',route);
   }
   const leaders=await(await fetch(base+'/api/goal-leaders/20252026')).json();assert.equal(leaders.overtime[0].goals,2);assert.equal(leaders.emptyNet[0].goals,4);assert.equal((await fetch(base+'/api/goal-leaders/bad')).status,404);
-  const power=await(await fetch(base+'/api/power-rankings/20252026')).json();assert.deepEqual(power.rows,[{id:10,name:'Toronto Maple Leafs',gamesPlayed:10,pp:.25,pk:.8,goals:35,goalsAgainst:25,wins:6,losses:3,otLosses:1,points:13,penaltyMinutes:120}]);
+  const power=await(await fetch(base+'/api/power-rankings/20252026')).json();assert.deepEqual(power.rows,[{id:10,name:'Toronto Maple Leafs',gamesPlayed:10,pp:.25,pk:.8,goals:35,goalsAgainst:25,shotsForPerGame:30,shotsAgainstPerGame:28,wins:6,losses:3,otLosses:1,points:13,penaltyMinutes:120}]);
   const strength=await(await fetch(base+'/api/underlying-strength/20262027')).json();assert.equal(strength.rows[0].xGoalsShare,2/3);
   const trend=await(await fetch(base+'/api/underlying-strength/20262027/TOR')).json();assert.equal(trend.lastTen.games,1);
   for(const route of ['/api/underlying-strength/20262029','/api/underlying-strength/20262027/BAD','/api/underlying-strength/invalid'])assert.equal((await fetch(base+route)).status,400);

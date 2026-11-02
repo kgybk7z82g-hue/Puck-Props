@@ -43,12 +43,19 @@ test('missing record or goals against excludes a team from combined rankings',()
  assert.equal(r.combined.length,0);assert.equal(r.record.length,1);assert.equal(r.defense.length,1);
 });
 
-test('power rankings render all categories, records and goal totals',()=>{
- const elements={powerColumns:{innerHTML:''}};context.$=id=>elements[id];context.esc=String;context.powerData={rows:[{id:1,name:'A',gamesPlayed:10,wins:6,losses:3,otLosses:1,points:13,goals:35,goalsAgainst:25,pp:.25,pk:.8}]};
+test('power rankings render all categories, records, goal totals and separate shot averages',()=>{
+ const elements={powerColumns:{innerHTML:''}};context.$=id=>elements[id];context.esc=String;context.powerData={rows:[{id:1,name:'A',gamesPlayed:10,wins:6,losses:3,otLosses:1,points:13,goals:35,goalsAgainst:25,shotsForPerGame:30,shotsAgainstPerGame:28,pp:.25,pk:.8}]};
  vm.runInContext(source.slice(source.indexOf('function renderPowerRankings'),source.indexOf('async function loadPowerRankings')),context);
  context.renderPowerRankings();const html=elements.powerColumns.innerHTML;
- assert.equal((html.match(/<table>/g)||[]).length,7);assert.match(html,/6–3–1/);assert.match(html,/GF 35 · GA 25/);assert.match(html,/65.0%/);assert.match(html,/2.50/);assert.match(html,/3.50/);
- context.powerData={rows:[]};context.renderPowerRankings();assert.equal((elements.powerColumns.innerHTML.match(/No statistics available yet/g)||[]).length,7);
+ assert.equal((html.match(/<table>/g)||[]).length,9);assert.match(html,/6–3–1/);assert.match(html,/GF 35 · GA 25/);assert.match(html,/65.0%/);assert.match(html,/2.50/);assert.match(html,/3.50/);assert.match(html,/Shots for per game/);assert.match(html,/Shots against per game/);assert.match(html,/30\.00/);assert.match(html,/28\.00/);
+ context.powerData={rows:[]};context.renderPowerRankings();assert.equal((elements.powerColumns.innerHTML.match(/No statistics available yet/g)||[]).length,9);
+});
+
+test('shot averages sort highest to lowest and do not affect the combined ranking',()=>{
+ const rows=[{id:1,name:'A',gamesPlayed:10,pp:.2,pk:.8,goals:30,shotsForPerGame:30,shotsAgainstPerGame:25},{id:2,name:'B',gamesPlayed:10,pp:.2,pk:.8,goals:30,shotsForPerGame:35,shotsAgainstPerGame:30}];
+ const r=build(rows),withoutShots=build(rows.map(({shotsForPerGame,shotsAgainstPerGame,...t})=>t));
+ assert.deepEqual(Array.from(r.shotsFor,t=>t.id),[2,1]);assert.deepEqual(Array.from(r.shotsAgainst,t=>t.id),[2,1]);
+ assert.deepEqual(Array.from(r.combined,t=>[t.id,t.average]),Array.from(withoutShots.combined,t=>[t.id,t.average]));
 });
 
 test('penalty rankings sort total minutes descending without changing combined rankings',()=>{
