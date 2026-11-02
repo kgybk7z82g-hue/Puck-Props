@@ -31,7 +31,7 @@ async function getPowerRankingStats(season) {
   const data = await nhlStatsJson(`https://api.nhle.com/stats/rest/en/team/summary?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=seasonId=${season}%20and%20gameTypeId=2`);
   if (!Array.isArray(data.data)) throw new Error('Team statistics were not returned.');
   const finite = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
-  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor)}));
+  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),shotsForPerGame:finite(t.shotsForPerGame),shotsAgainstPerGame:finite(t.shotsAgainstPerGame)}));
   const result = {season,rows,updatedAt:new Date().toISOString()};
   powerRankingsCache.set(season,{value:result,expires:Date.now()+5*60000});
   return result;

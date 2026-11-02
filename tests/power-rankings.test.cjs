@@ -32,3 +32,9 @@ test('goals per game corrects for unequal schedules and feeds the combined rank'
  assert.equal(r.combined.find(t=>t.id===2).average,1);
  assert.equal(r.combined.find(t=>t.id===3).average,1);
 });
+test('shot averages rank separately and do not change the combined ranking',()=>{
+ const rows=[{id:1,name:'A',gamesPlayed:10,pp:.2,pk:.8,goals:30,shotsForPerGame:30,shotsAgainstPerGame:25},{id:2,name:'B',gamesPlayed:10,pp:.2,pk:.8,goals:30,shotsForPerGame:35,shotsAgainstPerGame:30}];
+ const r=context.buildPowerRankings(rows),withoutShots=context.buildPowerRankings(rows.map(({shotsForPerGame,shotsAgainstPerGame,...t})=>t));
+ assert.deepEqual(Array.from(r.shotsFor,t=>t.id),[2,1]);assert.deepEqual(Array.from(r.shotsAgainst,t=>t.id),[2,1]);
+ assert.deepEqual(Array.from(r.combined,t=>[t.id,t.average]),Array.from(withoutShots.combined,t=>[t.id,t.average]));
+});

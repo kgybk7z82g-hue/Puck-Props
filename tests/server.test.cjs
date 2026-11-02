@@ -8,6 +8,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
  const port=4184;
  const mock=`global.fetch=async input=>{
   const url=new URL(input),p=url.pathname;
+  if(p==='/stats/rest/en/team/summary')return Response.json({data:[{teamId:10,teamFullName:'Toronto Maple Leafs',gamesPlayed:10,powerPlayPct:.25,penaltyKillPct:.8,goalsFor:35,shotsForPerGame:30,shotsAgainstPerGame:28}]});
   if(url.hostname==='nhlflights.ca')return Response.json(p.endsWith('/teams')?{teams:[{tri:'TOR',name:'Toronto Maple Leafs'}]}:{flights:[]});
   if(p.includes('/starting-goalies/'))return new Response('<script id="__NEXT_DATA__">'+JSON.stringify({props:{pageProps:{data:[]}}})+'</script>');
   if(p.includes('/player/999/'))throw Error('Simulated upstream failure');
@@ -24,6 +25,7 @@ test('server assets, API allowlist, proxy errors and analytics routes',async()=>
    const r=await fetch(base+route);assert.equal(r.status,200,route);assert.equal(r.headers.get('x-content-type-options'),'nosniff');
    if(route.startsWith('/api/'))assert.equal(typeof await r.json(),'object',route);
   }
+  const power=await(await fetch(base+'/api/power-rankings/20252026')).json();assert.deepEqual(power.rows,[{id:10,name:'Toronto Maple Leafs',gamesPlayed:10,pp:.25,pk:.8,goals:35,shotsForPerGame:30,shotsAgainstPerGame:28}]);
   const defense=await(await fetch(base+'/api/team-defense/TOR/20262027')).json();assert.equal(defense.gamesProcessed,0);assert.equal(defense.allowed.Forwards.shots,0);
   const travel=await(await fetch(base+'/api/travel?team=TOR')).json();assert.equal(travel.team,'TOR');assert.deepEqual(travel.flights,[]);assert.equal(travel.recoveryHours,null);
   assert.equal((await fetch(base+'/api/travel?team=BAD')).status,400);
