@@ -28,10 +28,13 @@ const powerRankingsCache = new Map();
 async function getPowerRankingStats(season) {
   const cached = powerRankingsCache.get(season);
   if (cached?.expires > Date.now()) return cached.value;
-  const data = await nhlStatsJson(`https://api.nhle.com/stats/rest/en/team/summary?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=seasonId=${season}%20and%20gameTypeId=2`);
+  const query=`?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=seasonId=${season}%20and%20gameTypeId=2`;
+  const [summary,penalties]=await Promise.allSettled(['summary','penalties'].map(report=>nhlStatsJson(`https://api.nhle.com/stats/rest/en/team/${report}${query}`)));
+  if(summary.status!=='fulfilled')throw Error('Team statistics were not returned.');
+  const data=summary.value,penaltyRows=penalties.status==='fulfilled'&&Array.isArray(penalties.value.data)?new Map(penalties.value.data.map(t=>[t.teamId,t])):new Map();
   if (!Array.isArray(data.data)) throw new Error('Team statistics were not returned.');
   const finite = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
-  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),shotsForPerGame:finite(t.shotsForPerGame),shotsAgainstPerGame:finite(t.shotsAgainstPerGame)}));
+  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),shotsForPerGame:finite(t.shotsForPerGame),shotsAgainstPerGame:finite(t.shotsAgainstPerGame),penaltyMinutes:finite(penaltyRows.get(t.teamId)?.penaltyMinutes)}));
   const result = {season,rows,updatedAt:new Date().toISOString()};
   powerRankingsCache.set(season,{value:result,expires:Date.now()+5*60000});
   return result;
