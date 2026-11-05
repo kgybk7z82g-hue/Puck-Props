@@ -34,6 +34,25 @@ const teamSpecialCache = new Map();
 const teamPeriodCache = new Map();
 const powerRankingsCache = new Map();
 
+function backToBackRecord(games, teamAbbrev) {
+  const completed = (games || []).filter(game => game.gameType === 2 && ['OFF', 'FINAL'].includes(game.gameState) && game.gameDate && game.homeTeam?.score != null && game.awayTeam?.score != null).sort((a,b) => a.gameDate.localeCompare(b.gameDate));
+  const record = { wins:0, losses:0, otLosses:0, games:0 };
+  for (let i=1;i<completed.length;i++) {
+    const previous=completed[i-1],game=completed[i];
+    const priorDay=new Date(Date.parse(game.gameDate+'T00:00:00Z')-86400000).toISOString().slice(0,10);
+    if (previous.gameDate !== priorDay) continue;
+    const team=game.homeTeam?.abbrev===teamAbbrev ? game.homeTeam : game.awayTeam?.abbrev===teamAbbrev ? game.awayTeam : null;
+    if(!team)continue;
+    const opponent=team===game.homeTeam?game.awayTeam:game.homeTeam;
+    if (team?.score==null || opponent?.score==null || team.score===opponent.score) continue;
+    record.games++;
+    if (team.score>opponent.score) record.wins++;
+    else if (game.gameOutcome?.lastPeriodType==='OT' || game.gameOutcome?.lastPeriodType==='SO') record.otLosses++;
+    else record.losses++;
+  }
+  return record;
+}
+
 async function getPowerRankingStats(season) {
   const cached = powerRankingsCache.get(season);
   if (cached?.expires > Date.now()) return cached.value;
@@ -43,7 +62,11 @@ async function getPowerRankingStats(season) {
   const data=summary.value,penaltyRows=penalties.status==='fulfilled'&&Array.isArray(penalties.value.data)?new Map(penalties.value.data.map(t=>[t.teamId,t])):new Map();
   if (!Array.isArray(data.data)) throw new Error('Team statistics were not returned.');
   const finite = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
-  const rows = data.data.map(t => ({id:t.teamId,name:t.teamFullName,gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),goalsAgainst:finite(t.goalsAgainst),shotsForPerGame:finite(t.shotsForPerGame),shotsAgainstPerGame:finite(t.shotsAgainstPerGame),wins:finite(t.wins),losses:finite(t.losses),otLosses:finite(t.otLosses),points:finite(t.points),penaltyMinutes:finite(penaltyRows.get(t.teamId)?.penaltyMinutes)}));
+  const historicalAbbreviations={'arizona coyotes':'ARI','phoenix coyotes':'ARI','utah hockey club':'UTA'};
+  const rows = data.data.map(t => {const name=t.teamFullName.toLowerCase();return {id:t.teamId,name:t.teamFullName,abbrev:teamCodeByName.get(name)||historicalAbbreviations[name],gamesPlayed:finite(t.gamesPlayed),pp:finite(t.powerPlayPct),pk:finite(t.penaltyKillPct),goals:finite(t.goalsFor),goalsAgainst:finite(t.goalsAgainst),shotsForPerGame:finite(t.shotsForPerGame),shotsAgainstPerGame:finite(t.shotsAgainstPerGame),wins:finite(t.wins),losses:finite(t.losses),otLosses:finite(t.otLosses),points:finite(t.points),penaltyMinutes:finite(penaltyRows.get(t.teamId)?.penaltyMinutes)}});
+  let next=0;
+  const worker=async()=>{while(next<rows.length){const row=rows[next++];try{const schedule=await nhlJson(`/club-schedule-season/${row.abbrev}/${season}`);row.backToBack=backToBackRecord(schedule.games,row.abbrev)}catch{row.backToBack=null}}};
+  await Promise.all(Array.from({length:Math.min(8,rows.length)},worker));
   const result = {season,rows,updatedAt:new Date().toISOString()};
   powerRankingsCache.set(season,{value:result,expires:Date.now()+5*60000});
   return result;
