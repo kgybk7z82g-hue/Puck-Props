@@ -30,6 +30,7 @@ const STATIC = new Map([
   ['/sw.js', ['sw.js', 'text/javascript; charset=utf-8']],
 ]);
 const teamDefenseCache = new Map();
+const leaguePositionDefenseCache = new Map();
 const teamSpecialCache = new Map();
 const teamPeriodCache = new Map();
 const powerRankingsCache = new Map();
@@ -289,6 +290,23 @@ async function getTeamDefense(team, season, before) {
   catch (error) { teamDefenseCache.delete(key); throw error; }
 }
 
+async function getLeaguePositionDefense(season) {
+  const cached=leaguePositionDefenseCache.get(season);
+  if(cached?.expires>Date.now())return cached.value;
+  if(cached?.promise)return cached.promise;
+  const promise=(async()=>{
+    const teams=[...teamCodeByName.values()],rows=[];let next=0,failedTeams=0;
+    const worker=async()=>{while(next<teams.length){const team=teams[next++];try{rows.push(await getTeamDefense(team,season))}catch{failedTeams++}}};
+    await Promise.all(Array.from({length:4},worker));
+    const positions=[['Centers','Center'],['LeftWings','Left Wing'],['RightWings','Right Wing'],['Defensemen','Defence']];
+    const rankings=Object.fromEntries(positions.map(([key,label])=>[key,rows.filter(r=>r.gamesProcessed>0).map(r=>({team:r.team,games:r.gamesProcessed,shots:r.allowed[key].shots,shotsPerGame:r.allowed[key].shots/r.gamesProcessed})).sort((a,b)=>b.shotsPerGame-a.shotsPerGame||a.team.localeCompare(b.team)).map((r,i)=>({...r,rank:i+1}))]));
+    const result={season,rankings,teamsProcessed:rows.length,failedTeams,updatedAt:new Date().toISOString()};
+    leaguePositionDefenseCache.set(season,{value:result,expires:Date.now()+15*60*1000});return result;
+  })();
+  leaguePositionDefenseCache.set(season,{promise});
+  try{return await promise}catch(error){leaguePositionDefenseCache.delete(season);throw error}
+}
+
 function clockSeconds(value) {
   const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
@@ -319,7 +337,21 @@ async function getTeamSpecialStats(team, season) {
   const promise = (async () => {
     const schedule = await nhlJson(`/club-schedule-season/${team}/${season}`);
     const games = (schedule.games || []).filter(game => game.gameType === 2 && ['OFF', 'FINAL'].includes(game.gameState));
-    const emptyNetGoals = new Map(), goaliePulledTime = new Map();
+    const emptyNetGoals = new Map(), playByPlayEmptyNetGoals = new Map(), goaliePulledTime = new Map();
+    const teamId = (schedule.games || []).map(game => game.homeTeam?.abbrev === team ? game.homeTeam?.id : game.awayTeam?.abbrev === team ? game.awayTeam?.id : null).find(id => Number.isInteger(Number(id)));
+    let emptyNetSource = 'NHL play-by-play';
+    if (teamId != null) {
+      try {
+        const query = new URLSearchParams({isAggregate:'false',isGame:'false',start:'0',limit:'-1',cayenneExp:`seasonId=${season} and gameTypeId=2 and teamId=${teamId}`});
+        const stats = await nhlStatsJson(`https://api.nhle.com/stats/rest/en/skater/realtime?${query}`);
+        if (!Array.isArray(stats.data) || (Number.isFinite(stats.total) && stats.data.length < stats.total)) throw Error('Incomplete NHL player statistics');
+        for (const player of stats.data) {
+          const goals = Number(player.emptyNetGoals), id = String(player.playerId || '');
+          if (id && Number.isFinite(goals) && goals > 0) emptyNetGoals.set(id,{playerId:id,name:player.skaterFullName||'',goals});
+        }
+        emptyNetSource = 'NHL player statistics';
+      } catch { /* Keep the game-by-game count as a clearly labeled fallback. */ }
+    }
     let next = 0, gamesProcessed = 0, shiftGames = 0, failed = 0;
     const worker = async () => {
       while (next < games.length) {
@@ -356,10 +388,10 @@ async function getTeamSpecialStats(team, season) {
             const scorer = String(details.scoringPlayerId || '');
             const scoringTeam = Number(details.eventOwnerTeamId) === homeId ? home : Number(details.eventOwnerTeamId) === awayId ? away : playerTeam.get(scorer);
             if (scoringTeam !== team || !scorer) continue;
-            const existing = emptyNetGoals.get(scorer) || { playerId: scorer, name: '', goals: 0 };
+            const existing = playByPlayEmptyNetGoals.get(scorer) || { playerId: scorer, name: '', goals: 0 };
             existing.goals++;
             existing.name ||= playerNames.get(scorer) || [details.scoringPlayerName].find(Boolean) || '';
-            emptyNetGoals.set(scorer, existing);
+            playByPlayEmptyNetGoals.set(scorer, existing);
           }
           gamesProcessed++;
 
@@ -394,11 +426,15 @@ async function getTeamSpecialStats(team, season) {
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, games.length) }, worker));
+    if (emptyNetSource === 'NHL play-by-play') for (const [id,player] of playByPlayEmptyNetGoals) emptyNetGoals.set(id,player);
     const goals = [...emptyNetGoals.values()].sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
     const time = [...goaliePulledTime.values()].sort((a, b) => b.seconds - a.seconds || a.name.localeCompare(b.name));
     const result = {
       team, season, gamesScheduled: games.length, gamesProcessed, shiftGames, failed,
       emptyNetLeaders: goals.slice(0, 5),
+      emptyNetSource,
+      officialEmptyNetTotal: emptyNetSource === 'NHL player statistics' ? [...emptyNetGoals.values()].reduce((sum,player)=>sum+player.goals,0) : null,
+      playByPlayEmptyNetGoals: [...playByPlayEmptyNetGoals.values()].reduce((sum,player)=>sum+player.goals,0),
       goaliePulledLeaders: time.slice(0, 5).map(player => ({ ...player, minutes: player.seconds / 60 })),
     };
     teamSpecialCache.set(key, { value: result, expires: Date.now() + 30 * 60 * 1000 });
@@ -477,6 +513,12 @@ const server = http.createServer(async (req, res) => {
   if (goalieMatch) {
     try { return send(res, 200, JSON.stringify(await getStartingGoalies(goalieMatch[1])), 'application/json; charset=utf-8'); }
     catch (error) { return send(res, 502, JSON.stringify({ error: error.message || 'Could not load probable starters.' }), 'application/json; charset=utf-8'); }
+  }
+
+  const leagueDefenseMatch = url.pathname.match(/^\/api\/team-defense-rankings\/(\d{8})$/);
+  if (leagueDefenseMatch) {
+    try { return send(res,200,JSON.stringify(await getLeaguePositionDefense(leagueDefenseMatch[1])),'application/json; charset=utf-8'); }
+    catch(error) { return send(res,502,JSON.stringify({error:error.message||'Could not load league position defense rankings.'}),'application/json; charset=utf-8'); }
   }
 
   const defenseMatch = url.pathname.match(/^\/api\/team-defense\/([A-Z]{3})\/(\d{8})$/);
